@@ -1,0 +1,731 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap');
+
+/* ───── Skip link (ADA) ───── */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 9999;
+  padding: 0.75rem 1.25rem;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  border-radius: 0 0 12px 12px;
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* ───── Focus-visible ring (ADA) ───── */
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ───── Light theme tokens ───── */
+:root {
+  color-scheme: light;
+  --bg: #f6f1e7;
+  --bg-elevated: rgba(255, 250, 240, 0.82);
+  --panel: rgba(255, 249, 241, 0.9);
+  --panel-strong: rgba(255, 246, 234, 0.96);
+  --text: #1d1a16;
+  --muted: #5d554d;
+  --border: rgba(61, 43, 31, 0.16);
+  --accent: #be5a2a;
+  --accent-soft: rgba(190, 90, 42, 0.14);
+  --accent-strong: #742f14;
+  --success: #1f7a56;
+  --danger: #9a2f2f;
+  --shadow: 0 24px 60px rgba(77, 48, 20, 0.16);
+  --plot-bg: rgba(255, 255, 255, 0.74);
+  --grid-line: rgba(83, 55, 35, 0.18);
+  --grid-dot: #1c4b64;
+  --grid-generator: #be5a2a;
+  --grid-selected: #caa100;
+  --grid-result: #1f7a56;
+  --hero-gradient: radial-gradient(circle at top left, rgba(190, 90, 42, 0.28), transparent 38%),
+    radial-gradient(circle at top right, rgba(28, 75, 100, 0.22), transparent 34%),
+    linear-gradient(180deg, rgba(255, 248, 238, 0.95), rgba(246, 241, 231, 0.72));
+  --focus-ring: #be5a2a;
+}
+
+/* ───── Dark theme tokens ───── */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #11171c;
+  --bg-elevated: rgba(20, 28, 35, 0.82);
+  --panel: rgba(17, 24, 29, 0.9);
+  --panel-strong: rgba(21, 31, 38, 0.98);
+  --text: #eef2f4;
+  --muted: #b7c1c8;
+  --border: rgba(160, 183, 198, 0.18);
+  --accent: #ff8c57;
+  --accent-soft: rgba(255, 140, 87, 0.14);
+  --accent-strong: #ffd3bf;
+  --success: #64d7a5;
+  --danger: #ff8b8b;
+  --shadow: 0 28px 72px rgba(0, 0, 0, 0.34);
+  --plot-bg: rgba(8, 12, 15, 0.72);
+  --grid-line: rgba(173, 194, 208, 0.18);
+  --grid-dot: #91d1f0;
+  --grid-generator: #ff8c57;
+  --grid-selected: #f7cf4a;
+  --grid-result: #64d7a5;
+  --hero-gradient: radial-gradient(circle at top left, rgba(255, 140, 87, 0.22), transparent 38%),
+    radial-gradient(circle at top right, rgba(92, 209, 240, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(22, 28, 36, 0.98), rgba(17, 23, 28, 0.84));
+  --focus-ring: #ff8c57;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'Space Grotesk', sans-serif;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent),
+    radial-gradient(circle at 20% 0%, rgba(190, 90, 42, 0.08), transparent 30%),
+    var(--bg);
+  color: var(--text);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(circle at center, black 42%, transparent 78%);
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+#app {
+  width: min(1260px, calc(100vw - 2rem));
+  margin: 0 auto;
+  padding: 1.4rem 0 4rem;
+}
+
+.app-shell {
+  display: grid;
+  gap: 1.2rem;
+}
+
+.hero,
+.why-card,
+.panel,
+.footer {
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(24px);
+}
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.8rem;
+  background: var(--hero-gradient);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  right: -70px;
+  bottom: -90px;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(190, 90, 42, 0.18), transparent 60%);
+}
+
+.hero-topline,
+.primitive-row,
+.badge-row,
+.hero-actions,
+.mode-toggle,
+.comparison-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.category-chip,
+.primitive-chip,
+.badge-link,
+.github-badge,
+.status-pill,
+.segment,
+.ghost-button,
+.primary-button {
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.category-chip,
+.primitive-chip,
+.badge-link,
+.github-badge,
+.status-pill {
+  padding: 0.48rem 0.86rem;
+}
+
+.category-chip,
+.github-badge {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.primitive-chip,
+.badge-link,
+.status-pill {
+  background: var(--accent-soft);
+}
+
+.badge-link,
+.github-badge {
+  text-decoration: none;
+}
+
+h1,
+h2,
+h3,
+p,
+dl,
+dd,
+dt,
+ol,
+ul {
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(2.5rem, 4vw, 4.6rem);
+  line-height: 0.94;
+  letter-spacing: -0.06em;
+  max-width: 10ch;
+  margin: 0.6rem 0 0.85rem;
+}
+
+h2 {
+  font-size: clamp(1.5rem, 2vw, 2rem);
+  letter-spacing: -0.04em;
+}
+
+h3 {
+  font-size: 1.08rem;
+}
+
+.subtitle,
+.panel-note,
+.muted,
+.crosslink-note {
+  color: var(--muted);
+}
+
+.subtitle {
+  max-width: 68ch;
+}
+
+.eyebrow,
+.result-kicker,
+.plot-generator-label,
+.step-index,
+dt {
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.76rem;
+}
+
+.hero-actions {
+  position: relative;
+  z-index: 1;
+}
+
+.ghost-button,
+.primary-button,
+.segment {
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.ghost-button,
+.segment {
+  padding: 0.72rem 1rem;
+  background: transparent;
+  color: var(--text);
+}
+
+.primary-button {
+  padding: 0.82rem 1.2rem;
+  color: white;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  border: none;
+}
+
+.segment.is-active,
+.ghost-button:hover,
+.primary-button:hover,
+.segment:hover {
+  transform: translateY(-1px);
+}
+
+.segment.is-active {
+  background: var(--accent-soft);
+  border-color: rgba(190, 90, 42, 0.35);
+}
+
+.why-card,
+.panel,
+.footer {
+  padding: 1.45rem;
+}
+
+.why-card {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.panel {
+  display: grid;
+  gap: 1rem;
+  background: linear-gradient(180deg, var(--panel), var(--panel-strong));
+}
+
+.panel-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.panel-grid,
+.comparison-grid,
+.ecdh-columns,
+.stacked-cards {
+  display: grid;
+  gap: 1rem;
+}
+
+.split-grid {
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+}
+
+.explorer-grid {
+  align-items: start;
+}
+
+.stacked-cards {
+  grid-template-columns: 1fr;
+}
+
+.comparison-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ecdh-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.plot,
+.mini-plot {
+  width: 100%;
+  display: block;
+}
+
+.plot {
+  aspect-ratio: 1;
+}
+
+.comparison-card,
+.result-card,
+.actor-card {
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.comparison-card,
+.actor-card {
+  padding: 1rem;
+}
+
+.comparison-card {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.comparison-card dl {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.comparison-card dl div {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.result-card {
+  padding: 1rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.result-card.is-error,
+.verification-item.is-fail {
+  border-color: rgba(154, 47, 47, 0.45);
+  background: rgba(154, 47, 47, 0.08);
+}
+
+.point-result,
+.code-block {
+  font-family: 'IBM Plex Mono', monospace;
+  word-break: break-word;
+}
+
+.point-result {
+  font-size: 1.28rem;
+}
+
+.code-block {
+  font-size: 0.88rem;
+  line-height: 1.65;
+}
+
+label {
+  display: grid;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+
+input,
+select {
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  padding: 0.82rem 0.94rem;
+  min-height: 44px;
+  font-size: 1rem;
+}
+
+.mode-body {
+  display: none;
+}
+
+.mode-body.is-active {
+  display: block;
+}
+
+.verification-list,
+.step-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.verification-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.verification-item,
+.step-list li {
+  display: grid;
+  gap: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 0.9rem 1rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.verification-item.is-pass {
+  border-color: rgba(31, 122, 86, 0.35);
+  background: rgba(31, 122, 86, 0.07);
+}
+
+.step-list li {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 0.75rem;
+}
+
+.step-index {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--accent-soft);
+}
+
+.plot-grid-line {
+  stroke: var(--grid-line);
+  stroke-width: 1;
+}
+
+.plot-axis-label {
+  fill: var(--muted);
+  font-size: 11px;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.plot-point {
+  fill: var(--grid-dot);
+  stroke: rgba(255, 255, 255, 0.8);
+  stroke-width: 1.4;
+  cursor: pointer;
+  transition: transform 180ms ease, fill 180ms ease;
+  transform-origin: center;
+}
+
+.plot-point:hover,
+.plot-point:focus-visible {
+  transform: scale(1.16);
+  outline: none;
+}
+
+.plot-point.is-generator {
+  fill: var(--grid-generator);
+}
+
+.plot-point.is-selected {
+  fill: var(--grid-selected);
+}
+
+.plot-point.is-result {
+  fill: var(--grid-result);
+  animation: pulse-result 900ms ease;
+}
+
+.plot-generator-label {
+  fill: var(--accent-strong);
+}
+
+.footer {
+  text-align: center;
+}
+
+@keyframes pulse-result {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.7;
+  }
+
+  60% {
+    transform: scale(1.25);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 1024px) {
+  .split-grid,
+  .comparison-grid,
+  .ecdh-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-header,
+  .hero {
+    flex-direction: column;
+  }
+
+  .comparison-grid {
+    grid-template-columns: 1fr;
+    gap: 1.2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .split-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ecdh-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .badge-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .badge-link {
+    text-align: center;
+  }
+
+  .code-block {
+    font-size: 0.78rem;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 640px) {
+  #app {
+    width: min(100vw - 1rem, 100%);
+    padding: 0.8rem 0 2.5rem;
+  }
+
+  .hero,
+  .panel,
+  .why-card,
+  .footer {
+    border-radius: 22px;
+    padding: 1rem;
+  }
+
+  h1 {
+    font-size: 2.3rem;
+  }
+
+  h2 {
+    font-size: 1.35rem;
+  }
+
+  .primitive-row,
+  .badge-row {
+    gap: 0.5rem;
+  }
+
+  .primitive-chip,
+  .badge-link,
+  .category-chip,
+  .github-badge,
+  .status-pill {
+    font-size: 0.82rem;
+    padding: 0.55rem 0.72rem;
+  }
+
+  .comparison-card,
+  .result-card,
+  .actor-card {
+    border-radius: 16px;
+    padding: 0.85rem;
+  }
+
+  .plot-point {
+    r: 8px;
+  }
+
+  .point-result {
+    font-size: 1.05rem;
+  }
+
+  .step-list li {
+    padding: 0.7rem 0.8rem;
+  }
+}
+
+@media (max-width: 400px) {
+  #app {
+    width: calc(100vw - 0.5rem);
+  }
+
+  .hero,
+  .panel,
+  .why-card,
+  .footer {
+    border-radius: 16px;
+    padding: 0.75rem;
+  }
+
+  h1 {
+    font-size: 1.9rem;
+  }
+
+  .mode-toggle {
+    flex-direction: column;
+  }
+
+  .segment {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* ───── Reduced motion (ADA / vestibular) ───── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ───── High contrast (Windows / forced-colors) ───── */
+@media (forced-colors: active) {
+  .plot-point {
+    forced-color-adjust: none;
+  }
+
+  .plot-point.is-generator {
+    fill: LinkText;
+  }
+
+  .plot-point.is-selected {
+    fill: Highlight;
+  }
+
+  .plot-point.is-result {
+    fill: ActiveText;
+  }
+
+  .ghost-button,
+  .primary-button,
+  .segment,
+  .badge-link,
+  .category-chip,
+  .primitive-chip,
+  .github-badge {
+    forced-color-adjust: auto;
+  }
+
+  .result-card,
+  .comparison-card,
+  .actor-card,
+  .verification-item {
+    border: 2px solid ButtonText;
+  }
+}
