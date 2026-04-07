@@ -8,6 +8,11 @@ crypto-lab-curve-lens is a browser-based crypto-lab demo for seeing elliptic-cur
 
 It is designed as the foundational ECC explainer in the crypto-lab collection: point addition, scalar multiplication, curve-family tradeoffs, and live ECDH with exact arithmetic.
 
+## Repo and Live Demo
+
+- Repository: https://github.com/systemslibrarian/crypto-lab-curve-lens
+- Demo: https://systemslibrarian.github.io/crypto-lab-curve-lens/
+
 ## What You Can Explore
 
 - Panel 1: A small-field curve explorer that plots every point on y² = x³ + 2x + 2 mod 17, labels the generator G, and lets you click two points to compute their exact sum.
