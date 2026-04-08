@@ -8,8 +8,12 @@
     <meta
       name="description"
       content="Curve Lens — interactive elliptic-curve point addition, scalar multiplication, curve comparison, and ECDH with real arithmetic via @noble/curves."
-    />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📐</text></svg>" />
+    />  <script>
+    (function () {
+      const saved = localStorage.getItem('theme');
+      document.documentElement.setAttribute('data-theme', saved ?? 'dark');
+    })();
+  </script>    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📐</text></svg>" />
     <title>crypto-lab-curve-lens</title>
   </head>
   <body>

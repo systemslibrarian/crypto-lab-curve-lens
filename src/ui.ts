@@ -45,17 +45,17 @@ const explorerGeneratorOrder = pointOrder(SMALL_FIELD_CURVE, SMALL_FIELD_CURVE.g
 const verificationSuite = runVerificationSuite();
 
 function detectTheme(): Theme {
-  const stored = window.localStorage.getItem('curve-lens-theme');
+  const stored = window.localStorage.getItem('theme');
   if (stored === 'light' || stored === 'dark') {
     return stored;
   }
 
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  return 'dark';
 }
 
 function applyTheme(theme: Theme): void {
   document.documentElement.dataset.theme = theme;
-  window.localStorage.setItem('curve-lens-theme', theme);
+  window.localStorage.setItem('theme', theme);
 }
 
 function badgeLinks(): string {
@@ -306,9 +306,12 @@ function buildAppMarkup(state: AppState): string {
           <p class="subtitle">Interactive elliptic-curve math with exact finite-field arithmetic for the toy model and @noble/curves for the production curves.</p>
           <div class="primitive-row" aria-label="Primitives used">${primitiveChips()}</div>
         </div>
-        <div class="hero-actions">
-          <button id="theme-toggle" class="ghost-button" aria-label="Toggle color theme">${state.theme === 'dark' ? 'Light mode' : 'Dark mode'}</button>
-        </div>
+        <button
+          id="theme-toggle"
+          class="theme-toggle-btn"
+          style="position: absolute; top: 0; right: 0;"
+          aria-label="${state.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}"
+        >${state.theme === 'dark' ? '🌙' : '☀️'}</button>
       </header>
 
       <main id="main-content">
