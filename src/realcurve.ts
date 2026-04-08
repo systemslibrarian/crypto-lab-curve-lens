@@ -261,11 +261,11 @@ export function defaultScalarForCurve(curveId: RealCurveId): string {
 
 export function runVerificationSuite(): VerificationResult[] {
   const p256GeneratorMatches = p256.ProjectivePoint.BASE.toHex(false) === P256_GENERATOR_UNCOMPRESSED;
-  const p256OrderMatches = p256.ProjectivePoint.BASE.multiply(p256.CURVE.n).equals(p256.ProjectivePoint.ZERO);
+  const p256OrderMatches = p256.ProjectivePoint.BASE.multiply(p256.CURVE.n - 1n).add(p256.ProjectivePoint.BASE).equals(p256.ProjectivePoint.ZERO);
   const secpGeneratorMatches =
     secp256k1.ProjectivePoint.BASE.toHex(false) === SECP256K1_GENERATOR_UNCOMPRESSED;
   const secpOrderMatches =
-    secp256k1.ProjectivePoint.BASE.multiply(secp256k1.CURVE.n).equals(secp256k1.ProjectivePoint.ZERO);
+    secp256k1.ProjectivePoint.BASE.multiply(secp256k1.CURVE.n - 1n).add(secp256k1.ProjectivePoint.BASE).equals(secp256k1.ProjectivePoint.ZERO);
 
   const alicePrivate = hexToBytes(RFC7748_ALICE_PRIVATE);
   const bobPrivate = hexToBytes(RFC7748_BOB_PRIVATE);
