@@ -309,7 +309,6 @@ function buildAppMarkup(state: AppState): string {
         <button
           id="theme-toggle"
           class="theme-toggle-btn"
-          style="position: absolute; top: 0; right: 0;"
           aria-label="${state.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}"
         >${state.theme === 'dark' ? '🌙' : '☀️'}</button>
       </header>

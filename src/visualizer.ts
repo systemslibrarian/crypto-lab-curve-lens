@@ -32,7 +32,7 @@ export function renderCurvePlot(
   svg.replaceChildren();
   setAttributes(svg, {
     viewBox: `0 0 ${size} ${size}`,
-    role: 'img',
+    role: options.onSelect ? 'group' : 'img',
     'aria-label': `${curve.name} finite field plot`,
   });
 
