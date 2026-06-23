@@ -51,7 +51,11 @@
   --grid-generator: #be5a2a;
   --grid-selected: #caa100;
   --grid-result: #1f7a56;
-  --hero-gradient: radial-gradient(circle at top left, rgba(190, 90, 42, 0.28), transparent 38%),
+  --grid-third: #7c3aed;
+  --grid-trail: #8aa0ac;
+  --grid-active: #be5a2a;
+  --hero-gradient:
+    radial-gradient(circle at top left, rgba(190, 90, 42, 0.28), transparent 38%),
     radial-gradient(circle at top right, rgba(28, 75, 100, 0.22), transparent 34%),
     linear-gradient(180deg, rgba(255, 248, 238, 0.95), rgba(246, 241, 231, 0.72));
   --focus-ring: #be5a2a;
@@ -79,7 +83,11 @@
   --grid-generator: #ff8c57;
   --grid-selected: #f7cf4a;
   --grid-result: #64d7a5;
-  --hero-gradient: radial-gradient(circle at top left, rgba(255, 140, 87, 0.22), transparent 38%),
+  --grid-third: #c4a5ff;
+  --grid-trail: #7e93a0;
+  --grid-active: #ff8c57;
+  --hero-gradient:
+    radial-gradient(circle at top left, rgba(255, 140, 87, 0.22), transparent 38%),
     radial-gradient(circle at top right, rgba(92, 209, 240, 0.18), transparent 34%),
     linear-gradient(180deg, rgba(22, 28, 36, 0.98), rgba(17, 23, 28, 0.84));
   --focus-ring: #ff8c57;
@@ -101,8 +109,7 @@ body {
   font-family: 'Space Grotesk', sans-serif;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent),
-    radial-gradient(circle at 20% 0%, rgba(190, 90, 42, 0.08), transparent 30%),
-    var(--bg);
+    radial-gradient(circle at 20% 0%, rgba(190, 90, 42, 0.08), transparent 30%), var(--bg);
   color: var(--text);
 }
 
@@ -111,7 +118,8 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
   background-size: 28px 28px;
   mask-image: radial-gradient(circle at center, black 42%, transparent 78%);
@@ -285,7 +293,10 @@ dt {
 .primary-button,
 .segment {
   cursor: pointer;
-  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
   min-height: 44px;
   min-width: 44px;
 }
@@ -329,7 +340,10 @@ dt {
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease;
   position: absolute;
   top: 1rem;
   right: 1rem;
@@ -571,7 +585,9 @@ select {
   stroke: rgba(255, 255, 255, 0.8);
   stroke-width: 1.4;
   cursor: pointer;
-  transition: transform 180ms ease, fill 180ms ease;
+  transition:
+    transform 180ms ease,
+    fill 180ms ease;
   transform-origin: center;
 }
 
@@ -589,13 +605,149 @@ select {
   fill: var(--grid-selected);
 }
 
+.plot-point.is-third {
+  fill: var(--grid-third);
+}
+
+.plot-point.is-trail {
+  fill: var(--grid-trail);
+  opacity: 0.85;
+}
+
 .plot-point.is-result {
   fill: var(--grid-result);
   animation: pulse-result 900ms ease;
 }
 
+.plot-point.is-active {
+  fill: var(--grid-active);
+  stroke: var(--text);
+  stroke-width: 2;
+  animation: pulse-result 500ms ease;
+}
+
 .plot-generator-label {
   fill: var(--accent-strong);
+}
+
+.plot-third-label {
+  fill: var(--grid-third);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* ───── Group-law geometry ───── */
+.plot-chord {
+  stroke: var(--grid-third);
+  stroke-width: 1.6;
+  stroke-dasharray: 6 5;
+  opacity: 0.85;
+}
+
+.plot-reflect {
+  stroke: var(--grid-result);
+  stroke-width: 1.6;
+  stroke-dasharray: 2 4;
+  opacity: 0.9;
+}
+
+/* ───── Plot legend ───── */
+.plot-legend {
+  list-style: none;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.plot-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.legend-dot {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  flex-shrink: 0;
+}
+
+.legend-dot.is-generator {
+  background: var(--grid-generator);
+}
+
+.legend-dot.is-selected {
+  background: var(--grid-selected);
+}
+
+.legend-dot.is-third {
+  background: var(--grid-third);
+}
+
+.legend-dot.is-result {
+  background: var(--grid-result);
+}
+
+/* ───── Copy-to-clipboard rows ───── */
+.copy-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.copy-row .code-block {
+  flex: 1 1 auto;
+}
+
+.copy-btn {
+  flex: 0 0 auto;
+  cursor: pointer;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--accent-soft);
+  color: var(--text);
+  padding: 0.4rem 0.7rem;
+  font-size: 0.78rem;
+  min-height: 36px;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease;
+}
+
+.copy-btn:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.copy-btn.is-copied {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.plot-hint {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.share-btn {
+  margin-top: 0.6rem;
+  justify-self: start;
+  border-radius: 12px;
+  font-size: 0.85rem;
 }
 
 .footer {
@@ -773,13 +925,24 @@ select {
     fill: ActiveText;
   }
 
+  .plot-point.is-third,
+  .plot-point.is-active {
+    fill: LinkText;
+  }
+
+  .plot-chord,
+  .plot-reflect {
+    stroke: CanvasText;
+  }
+
   .ghost-button,
   .primary-button,
   .segment,
   .badge-link,
   .category-chip,
   .primitive-chip,
-  .github-badge {
+  .github-badge,
+  .copy-btn {
     forced-color-adjust: auto;
   }
 

@@ -69,7 +69,8 @@ export const REAL_CURVES: Record<RealCurveId, RealCurveMeta> = {
     cofactor: '1',
     generator:
       'Gx = 0x6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296, Gy = 0x4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5',
-    safeCurves: 'SafeCurves: does not satisfy all SafeCurves criteria. Source: safecurves.cr.yp.to.',
+    safeCurves:
+      'SafeCurves: does not satisfy all SafeCurves criteria. Source: safecurves.cr.yp.to.',
     useCases: 'TLS certificates, WebAuthn, government and enterprise ECDSA/ECDH deployments',
     recommendedStatus: 'Acceptable where interoperability requires it',
     shorStatus: 'Broken by Shor on a fault-tolerant quantum computer',
@@ -98,7 +99,8 @@ export const REAL_CURVES: Record<RealCurveId, RealCurveMeta> = {
     cofactor: '1',
     generator:
       'Gx = 0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798, Gy = 0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8',
-    safeCurves: 'SafeCurves: does not satisfy all SafeCurves criteria. Source: safecurves.cr.yp.to.',
+    safeCurves:
+      'SafeCurves: does not satisfy all SafeCurves criteria. Source: safecurves.cr.yp.to.',
     useCases: 'Bitcoin, Ethereum, Schnorr and ECDSA signatures in cryptocurrency systems',
     recommendedStatus: 'Acceptable when the surrounding ecosystem requires it',
     shorStatus: 'Broken by Shor on a fault-tolerant quantum computer',
@@ -149,9 +151,14 @@ function decimalToBigInt(value: string): bigint {
   return BigInt(value.trim());
 }
 
-function normalizeScalarForShortWeierstrass(curveId: 'p256' | 'secp256k1', rawScalar: string): bigint {
+function normalizeScalarForShortWeierstrass(
+  curveId: 'p256' | 'secp256k1',
+  rawScalar: string,
+): bigint {
   const curve = curveId === 'p256' ? p256 : secp256k1;
-  const scalar = /^0x/i.test(rawScalar.trim()) ? BigInt(rawScalar.trim()) : decimalToBigInt(rawScalar);
+  const scalar = /^0x/i.test(rawScalar.trim())
+    ? BigInt(rawScalar.trim())
+    : decimalToBigInt(rawScalar);
 
   if (scalar <= 0n || scalar >= curve.CURVE.n) {
     throw new Error(`Scalar must be in [1, n-1] for ${REAL_CURVES[curveId].label}.`);
@@ -260,21 +267,27 @@ export function defaultScalarForCurve(curveId: RealCurveId): string {
 }
 
 export function runVerificationSuite(): VerificationResult[] {
-  const p256GeneratorMatches = p256.ProjectivePoint.BASE.toHex(false) === P256_GENERATOR_UNCOMPRESSED;
-  const p256OrderMatches = p256.ProjectivePoint.BASE.multiply(p256.CURVE.n - 1n).add(p256.ProjectivePoint.BASE).equals(p256.ProjectivePoint.ZERO);
+  const p256GeneratorMatches =
+    p256.ProjectivePoint.BASE.toHex(false) === P256_GENERATOR_UNCOMPRESSED;
+  const p256OrderMatches = p256.ProjectivePoint.BASE.multiply(p256.CURVE.n - 1n)
+    .add(p256.ProjectivePoint.BASE)
+    .equals(p256.ProjectivePoint.ZERO);
   const secpGeneratorMatches =
     secp256k1.ProjectivePoint.BASE.toHex(false) === SECP256K1_GENERATOR_UNCOMPRESSED;
-  const secpOrderMatches =
-    secp256k1.ProjectivePoint.BASE.multiply(secp256k1.CURVE.n - 1n).add(secp256k1.ProjectivePoint.BASE).equals(secp256k1.ProjectivePoint.ZERO);
+  const secpOrderMatches = secp256k1.ProjectivePoint.BASE.multiply(secp256k1.CURVE.n - 1n)
+    .add(secp256k1.ProjectivePoint.BASE)
+    .equals(secp256k1.ProjectivePoint.ZERO);
 
   const alicePrivate = hexToBytes(RFC7748_ALICE_PRIVATE);
   const bobPrivate = hexToBytes(RFC7748_BOB_PRIVATE);
   const alicePublicMatches = bytesToHex(x25519.getPublicKey(alicePrivate)) === RFC7748_ALICE_PUBLIC;
   const bobPublicMatches = bytesToHex(x25519.getPublicKey(bobPrivate)) === RFC7748_BOB_PUBLIC;
   const aliceSharedMatches =
-    bytesToHex(x25519.getSharedSecret(alicePrivate, hexToBytes(RFC7748_BOB_PUBLIC))) === RFC7748_SHARED;
+    bytesToHex(x25519.getSharedSecret(alicePrivate, hexToBytes(RFC7748_BOB_PUBLIC))) ===
+    RFC7748_SHARED;
   const bobSharedMatches =
-    bytesToHex(x25519.getSharedSecret(bobPrivate, hexToBytes(RFC7748_ALICE_PUBLIC))) === RFC7748_SHARED;
+    bytesToHex(x25519.getSharedSecret(bobPrivate, hexToBytes(RFC7748_ALICE_PUBLIC))) ===
+    RFC7748_SHARED;
 
   return [
     {

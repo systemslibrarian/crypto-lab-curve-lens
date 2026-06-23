@@ -18,7 +18,9 @@ Elliptic-curve Diffie-Hellman (ECDH) is an asymmetric key-agreement protocol bui
 
 [https://systemslibrarian.github.io/crypto-lab-curve-lens/](https://systemslibrarian.github.io/crypto-lab-curve-lens/)
 
-The demo has four interactive panels. Panel 1 plots every point on the small teaching curve and lets you click any two to compute their exact finite-field sum. Panel 2 runs scalar multiplication in both toy and production modes, with a full double-and-add trace for the small field and real generator multiplication for P-256, Curve25519, and secp256k1. Panel 3 shows side-by-side comparison cards for the three production curves, including field size, subgroup order, cofactor, SafeCurves rating, and post-quantum status. Panel 4 is a live ECDH exchange: click "Generate fresh keypairs" to produce new random Alice and Bob key pairs on your chosen curve and verify that both arrive at the same shared value.
+The demo has five interactive panels. Panel 1 plots every point on the small teaching curve, lets you click any two to compute their exact finite-field sum, and draws the chord/tangent line, the third intersection −(P+Q), and the reflection that defines the group law. Panel 2 runs scalar multiplication in both toy and production modes, with a full double-and-add trace for the small field and real generator multiplication for P-256, Curve25519, and secp256k1. Panel 3 lets you brute-force the elliptic-curve discrete logarithm on the toy curve — watch G, 2·G, 3·G, … walk the subgroup until the public point appears — then contrasts that with the ~2²⁵⁶ work it would take on P-256. Panel 4 shows side-by-side comparison cards for the three production curves, including field size, subgroup order, cofactor, SafeCurves rating, and post-quantum status. Panel 5 is a live ECDH exchange: click "Generate fresh keypairs" to produce new random Alice and Bob key pairs on your chosen curve and verify that both arrive at the same shared value, with one-click copy on every key.
+
+The explorer grid is fully keyboard-navigable (Tab to focus the grid, arrow keys to move between points, Enter to select), and the current view — selected points, scalar, and chosen curves — is encoded in the URL, so "Copy shareable link" reproduces exactly what you're looking at.
 
 ## What Can Go Wrong
 
@@ -36,6 +38,19 @@ The demo has four interactive panels. Panel 1 plots every point on the small tea
 - **FIDO2 / WebAuthn (W3C + CTAP2).** P-256 (ES256) is the mandatory-to-implement credential algorithm for hardware security keys and platform authenticators, used in passkey authentication and hardware 2FA.
 - **Bitcoin and Ethereum.** secp256k1 is used for ECDSA transaction signing in both networks; every Bitcoin address and Ethereum account is derived from a secp256k1 public key.
 
+## Development
+
+```bash
+npm install      # install dependencies
+npm run dev      # start the Vite dev server
+npm test         # run the Vitest suite (arithmetic, real-curve vectors, DOM smoke tests)
+npm run lint     # ESLint + Prettier check
+npm run format   # apply Prettier
+npm run build    # typecheck (tsc --noEmit) + production build
+```
+
+The finite-field arithmetic, the `@noble/curves` integration, and the rendered UI are all covered by tests. `runVerificationSuite()` additionally re-checks the P-256 and secp256k1 base points and subgroup orders and the RFC 7748 X25519 vectors at runtime, surfacing the results in Panel 2. CI (`.github/workflows/ci.yml`) runs lint, tests, and build on every push and pull request; deployment to GitHub Pages runs only after the same checks pass.
+
 ## Related Demos
 
 - [crypto-lab-x3dh-wire](https://github.com/systemslibrarian/crypto-lab-x3dh-wire)
@@ -43,4 +58,4 @@ The demo has four interactive panels. Panel 1 plots every point on the small tea
 - [crypto-compare](https://github.com/systemslibrarian/crypto-compare)
 - [crypto-lab landing page](https://github.com/systemslibrarian/crypto-lab)
 
-*"So whether you eat or drink or whatever you do, do it all for the glory of God." — 1 Corinthians 10:31*
+_"So whether you eat or drink or whatever you do, do it all for the glory of God." — 1 Corinthians 10:31_

@@ -2,13 +2,16 @@ import {
   COMPARISON_ANALOGS,
   SMALL_FIELD_CURVE,
   addPoints,
+  chordSlope,
   enumeratePoints,
   explainScalarMultiply,
   formatPoint,
   groupOrder,
+  mod,
+  multiplesOfPoint,
   pointOrder,
-  pointsEqual,
   scalarMultiply,
+  solveDiscreteLog,
   type FinitePoint,
   type Point,
 } from './curve';
@@ -37,12 +40,44 @@ interface AppState {
   realScalar: string;
   ecdhCurve: RealCurveId;
   ecdhTranscript: EcdhTranscript;
+  /** Transient: a point to move keyboard focus to after the next render. */
+  focusPoint: Point;
+  /** Discrete-log challenge: the hidden scalar and the public target Q = k·G. */
+  ecdlpSecret: number;
+  ecdlpTarget: Point;
+  /** How many multiples of the walk are currently revealed (0 = not started). */
+  ecdlpRevealed: number;
+  ecdlpSolved: boolean;
 }
 
 const explorerPoints = enumeratePoints(SMALL_FIELD_CURVE);
 const explorerGroupOrder = groupOrder(SMALL_FIELD_CURVE);
-const explorerGeneratorOrder = pointOrder(SMALL_FIELD_CURVE, SMALL_FIELD_CURVE.generator);
+const explorerGenerator = SMALL_FIELD_CURVE.generator as FinitePoint;
+const explorerGeneratorOrder = pointOrder(SMALL_FIELD_CURVE, explorerGenerator);
 const verificationSuite = runVerificationSuite();
+
+/** A timer handle for the animated discrete-log walk, so it can be cancelled. */
+let ecdlpTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * The URL is only mirrored once the user interacts, so a first visit stays clean
+ * (and any params from a shared link are preserved untouched until then).
+ */
+let urlSyncEnabled = false;
+
+function prefersReducedMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+/** Pick a fresh secret scalar k in [1, generator order] and its public point Q = k·G. */
+function freshDiscreteLogChallenge(): { secret: number; target: Point } {
+  const order = explorerGeneratorOrder;
+  const buffer = new Uint32Array(1);
+  crypto.getRandomValues(buffer);
+  // Keep k in [1, order-1] so the public point Q is always a finite point on the grid.
+  const secret = (buffer[0] % (order - 1)) + 1;
+  return { secret, target: scalarMultiply(SMALL_FIELD_CURVE, secret, explorerGenerator) };
+}
 
 function detectTheme(): Theme {
   const stored = window.localStorage.getItem('theme');
@@ -56,6 +91,86 @@ function detectTheme(): Theme {
 function applyTheme(theme: Theme): void {
   document.documentElement.dataset.theme = theme;
   window.localStorage.setItem('theme', theme);
+}
+
+const REAL_CURVE_IDS: RealCurveId[] = ['p256', 'curve25519', 'secp256k1'];
+
+function parsePointParam(value: string | null): FinitePoint[] {
+  if (!value) {
+    return [];
+  }
+
+  const parsed: FinitePoint[] = [];
+  for (const pair of value.split('_').slice(0, 2)) {
+    const [xs, ys] = pair.split('.');
+    const x = Number(xs);
+    const y = Number(ys);
+    if (
+      Number.isInteger(x) &&
+      Number.isInteger(y) &&
+      explorerPoints.some((point) => point.x === x && point.y === y)
+    ) {
+      parsed.push({ x, y });
+    }
+  }
+  return parsed;
+}
+
+/** Restore deterministic view state from the query string (validated against the actual curve). */
+function applyUrlState(state: AppState): void {
+  const params = new URLSearchParams(window.location.search);
+
+  const selected = parsePointParam(params.get('add'));
+  if (selected.length > 0) {
+    state.selectedPoints = selected;
+    if (selected.length === 2) {
+      state.additionResult = addPoints(SMALL_FIELD_CURVE, selected[0], selected[1]);
+    }
+  }
+
+  const scalar = Number(params.get('k'));
+  if (Number.isInteger(scalar) && scalar >= 1 && scalar <= 20) {
+    state.smallScalar = scalar;
+  }
+
+  const mode = params.get('mode');
+  if (mode === 'small' || mode === 'real') {
+    state.scalarMode = mode;
+  }
+
+  const realCurve = params.get('rc');
+  if (realCurve && REAL_CURVE_IDS.includes(realCurve as RealCurveId)) {
+    state.realCurve = realCurve as RealCurveId;
+    state.realScalar = defaultScalarForCurve(state.realCurve);
+  }
+
+  const realScalar = params.get('rs');
+  if (realScalar) {
+    state.realScalar = realScalar;
+  }
+
+  const ecdhCurve = params.get('ec');
+  if (ecdhCurve && REAL_CURVE_IDS.includes(ecdhCurve as RealCurveId)) {
+    state.ecdhCurve = ecdhCurve as RealCurveId;
+    state.ecdhTranscript = generateEcdhDemo(state.ecdhCurve);
+  }
+}
+
+/** Mirror the current view into the URL (without a navigation) so it can be shared. */
+function syncUrl(state: AppState): void {
+  const params = new URLSearchParams();
+  if (state.selectedPoints.length > 0) {
+    params.set('add', state.selectedPoints.map((point) => `${point.x}.${point.y}`).join('_'));
+  }
+  params.set('k', String(state.smallScalar));
+  params.set('mode', state.scalarMode);
+  params.set('rc', state.realCurve);
+  params.set('rs', state.realScalar);
+  params.set('ec', state.ecdhCurve);
+
+  const query = params.toString();
+  const url = `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`;
+  window.history.replaceState(null, '', url);
 }
 
 function badgeLinks(): string {
@@ -146,9 +261,100 @@ function selectedPointLabel(point: Point): string {
   return point === null ? 'O' : formatPoint(point);
 }
 
+/** Live, step-by-step arithmetic for adding the two currently selected points. */
+function explorerArithmetic(p: FinitePoint, q: FinitePoint): string {
+  const { p: prime, a } = SMALL_FIELD_CURVE;
+  const slope = chordSlope(SMALL_FIELD_CURVE, p, q);
+
+  if (slope === null) {
+    return `
+      <p class="muted">P and Q share an x-coordinate with y-values summing to ${prime}, so the line through them is vertical and meets the curve only at O.</p>
+      <p class="code-block">P + Q = O (point at infinity)</p>
+    `;
+  }
+
+  const isDouble = p.x === q.x && p.y === q.y;
+  const x3 = mod(slope * slope - p.x - q.x, prime);
+  const y3 = mod(slope * (p.x - x3) - p.y, prime);
+  const slopeFormula = isDouble
+    ? `λ = (3·${p.x}² + ${a}) · (2·${p.y})⁻¹`
+    : `λ = (${q.y} − ${p.y}) · (${q.x} − ${p.x})⁻¹`;
+
+  return `
+    <p class="code-block">${slopeFormula} = ${slope} (mod ${prime})</p>
+    <p class="code-block">x₃ = λ² − ${p.x} − ${q.x} = ${x3} (mod ${prime})</p>
+    <p class="code-block">y₃ = λ·(${p.x} − ${x3}) − ${p.y} = ${y3} (mod ${prime})</p>
+  `;
+}
+
+function escapeAttr(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+/** A monospace value with a one-click copy button. */
+function copyable(value: string, label: string): string {
+  return `
+    <div class="copy-row">
+      <p class="code-block">${value}</p>
+      <button class="copy-btn" type="button" data-copy="${escapeAttr(value)}" aria-label="Copy ${escapeAttr(label)}">Copy</button>
+    </div>
+  `;
+}
+
+function plotLegend(): string {
+  return `
+    <ul class="plot-legend" aria-label="Plot legend">
+      <li><span class="legend-dot is-generator"></span>Generator G</li>
+      <li><span class="legend-dot is-selected"></span>Selected P, Q</li>
+      <li><span class="legend-dot is-third"></span>Third intersection −(P+Q)</li>
+      <li><span class="legend-dot is-result"></span>Sum P+Q</li>
+    </ul>
+  `;
+}
+
+function ecdlpPanelMarkup(state: AppState): string {
+  const maxScalar = explorerGeneratorOrder - 1;
+  return `
+    <div class="panel-grid split-grid explorer-grid">
+      <div>
+        <svg id="ecdlp-plot" class="plot"></svg>
+      </div>
+      <div class="stacked-cards">
+        <article class="result-card">
+          <p class="result-kicker">Public challenge</p>
+          <p>A secret scalar <strong>k</strong> was chosen at random in [1, ${maxScalar}]. Only its public point is shown:</p>
+          <p class="point-result">Q = k · G = ${selectedPointLabel(state.ecdlpTarget)}</p>
+          <p class="muted">Recovering k from Q is the elliptic-curve discrete logarithm problem (ECDLP).</p>
+        </article>
+        <article class="result-card" id="ecdlp-status" aria-live="polite">
+          <p class="result-kicker">Brute-force search</p>
+          <p>${
+            state.ecdlpSolved
+              ? `Solved: <strong>k = ${state.ecdlpSecret}</strong> after ${state.ecdlpSecret} point additions.`
+              : 'Press “Solve” to walk G, 2·G, 3·G, … until the public point appears.'
+          }</p>
+          <p class="muted">On P-256 the same brute force needs about 2<sup>256</sup> additions — more than the number of atoms in the observable universe.</p>
+        </article>
+        <div class="button-row">
+          <button class="primary-button" type="button" id="ecdlp-solve">Solve by brute force</button>
+          <button class="ghost-button" type="button" id="ecdlp-new">New secret</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function scalarPanelMarkup(state: AppState): string {
-  const smallResult = scalarMultiply(SMALL_FIELD_CURVE, state.smallScalar, SMALL_FIELD_CURVE.generator);
-  const smallSteps = explainScalarMultiply(SMALL_FIELD_CURVE, state.smallScalar, SMALL_FIELD_CURVE.generator);
+  const smallResult = scalarMultiply(
+    SMALL_FIELD_CURVE,
+    state.smallScalar,
+    SMALL_FIELD_CURVE.generator,
+  );
+  const smallSteps = explainScalarMultiply(
+    SMALL_FIELD_CURVE,
+    state.smallScalar,
+    SMALL_FIELD_CURVE.generator,
+  );
   let realResultMarkup = '';
 
   try {
@@ -156,7 +362,7 @@ function scalarPanelMarkup(state: AppState): string {
     realResultMarkup = `
       <div class="result-card">
         <p class="result-kicker">Real curve result</p>
-        <p class="code-block">${result.resultHex}</p>
+        ${copyable(result.resultHex, 'public point')}
         <p class="muted">Scalar: ${normalizeScalarLabel(state.realCurve, state.realScalar)}</p>
         <p class="muted">Steps shown conceptually: ${result.stepCount}. ${result.explanation}</p>
       </div>
@@ -254,30 +460,31 @@ function ecdhPanelMarkup(state: AppState): string {
         </label>
         <button class="primary-button" id="ecdh-generate" aria-label="Generate fresh ECDH keypairs for Alice and Bob">Generate fresh keypairs</button>
         <p class="panel-note">Alice computes a · B, Bob computes b · A, and both land on the same shared point or u-coordinate.</p>
-        <div class="result-card ${keysMatch ? '' : 'is-error'}">
+        <div class="result-card ${keysMatch ? '' : 'is-error'}" aria-live="polite">
           <p class="result-kicker">Shared secret</p>
-          <p class="code-block" aria-live="polite">${transcript.aliceShared}</p>
-          <p class="muted">Match: ${keysMatch ? 'Yes' : 'No'}</p>
+          ${copyable(transcript.aliceShared, 'shared secret')}
+          <p class="muted">Match: ${keysMatch ? '✓ Yes — both parties derived the same secret' : '✗ No'}</p>
+          <p class="muted">In production this raw value is run through a KDF (HKDF) before use as a symmetric key.</p>
         </div>
       </div>
       <div class="ecdh-columns">
         <article class="actor-card">
           <h3>Alice</h3>
           <p><strong>Private scalar</strong></p>
-          <p class="code-block">${transcript.alicePrivate}</p>
+          ${copyable(transcript.alicePrivate, "Alice's private scalar")}
           <p><strong>Public point / u-coordinate</strong></p>
-          <p class="code-block">${transcript.alicePublic}</p>
+          ${copyable(transcript.alicePublic, "Alice's public point")}
           <p><strong>a · B</strong></p>
-          <p class="code-block">${transcript.aliceShared}</p>
+          ${copyable(transcript.aliceShared, "Alice's shared value")}
         </article>
         <article class="actor-card">
           <h3>Bob</h3>
           <p><strong>Private scalar</strong></p>
-          <p class="code-block">${transcript.bobPrivate}</p>
+          ${copyable(transcript.bobPrivate, "Bob's private scalar")}
           <p><strong>Public point / u-coordinate</strong></p>
-          <p class="code-block">${transcript.bobPublic}</p>
+          ${copyable(transcript.bobPublic, "Bob's public point")}
           <p><strong>b · A</strong></p>
-          <p class="code-block">${transcript.bobShared}</p>
+          ${copyable(transcript.bobShared, "Bob's shared value")}
         </article>
       </div>
     </div>
@@ -286,7 +493,9 @@ function ecdhPanelMarkup(state: AppState): string {
 
 function buildAppMarkup(state: AppState): string {
   const selectionSummary = state.selectedPoints.length
-    ? state.selectedPoints.map((point, index) => `P${index + 1} = ${formatPoint(point)}`).join(' · ')
+    ? state.selectedPoints
+        .map((point, index) => `P${index + 1} = ${formatPoint(point)}`)
+        .join(' · ')
     : 'Click two visible points to add them.';
 
   const additionSummary =
@@ -338,6 +547,8 @@ function buildAppMarkup(state: AppState): string {
         <div class="panel-grid split-grid explorer-grid">
           <div>
             <svg id="curve-explorer-plot" class="plot"></svg>
+            ${plotLegend()}
+            <p class="muted plot-hint">Tip: press Tab to focus the grid, use the arrow keys to move between points, and Enter to select.</p>
           </div>
           <div class="stacked-cards">
             <article class="result-card">
@@ -346,14 +557,23 @@ function buildAppMarkup(state: AppState): string {
               <p class="muted">Group order: ${explorerGroupOrder}. Generator G = ${selectedPointLabel(SMALL_FIELD_CURVE.generator)} has order ${explorerGeneratorOrder}.</p>
             </article>
             <article class="result-card">
+              <p class="result-kicker">The group law</p>
+              <p class="muted">To add P + Q, draw the line through them; it meets the curve at a third point −(P+Q). Reflect that across the horizontal mid-line (y → p−y) to get the sum. Over a finite field the line wraps modulo p, so the third point can reappear elsewhere on the grid.</p>
+            </article>
+            <article class="result-card">
               <p class="result-kicker">Selections</p>
               <p>${selectionSummary}</p>
               <p class="muted">${additionSummary}</p>
+              <button class="ghost-button share-btn" type="button" id="share-link" aria-label="Copy a shareable link to this view">Copy shareable link</button>
             </article>
             <article class="result-card">
               <p class="result-kicker">Result</p>
               <p class="point-result" aria-live="polite">${selectedPointLabel(state.additionResult)}</p>
-              <p class="muted">The highlighted dot is the exact sum in the finite field, not a floating-point approximation.</p>
+              ${
+                state.selectedPoints.length === 2
+                  ? explorerArithmetic(state.selectedPoints[0], state.selectedPoints[1])
+                  : '<p class="muted">The highlighted dot is the exact sum in the finite field, not a floating-point approximation.</p>'
+              }
             </article>
           </div>
         </div>
@@ -377,7 +597,18 @@ function buildAppMarkup(state: AppState): string {
         <div class="panel-header">
           <div>
             <p class="eyebrow">Panel 3</p>
-            <h2 id="panel3-heading">Curve Comparison</h2>
+            <h2 id="panel3-heading">Break the Discrete Log</h2>
+          </div>
+          <p class="panel-note">Scalar multiplication is easy; reversing it is not. Here you can actually brute-force k on the toy curve — then see why that brute force is hopeless at production scale.</p>
+        </div>
+        ${ecdlpPanelMarkup(state)}
+      </section>
+
+      <section class="panel" aria-labelledby="panel4-heading">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Panel 4</p>
+            <h2 id="panel4-heading">Curve Comparison</h2>
           </div>
           <p class="panel-note">All three are broken by Shor's algorithm on a sufficiently large fault-tolerant quantum computer. The mini-plots are small-field analogs that preserve equation family, not production-field coordinates.</p>
         </div>
@@ -386,11 +617,11 @@ function buildAppMarkup(state: AppState): string {
         </div>
       </section>
 
-      <section class="panel" aria-labelledby="panel4-heading">
+      <section class="panel" aria-labelledby="panel5-heading">
         <div class="panel-header">
           <div>
-            <p class="eyebrow">Panel 4</p>
-            <h2 id="panel4-heading">ECDH Live Demo</h2>
+            <p class="eyebrow">Panel 5</p>
+            <h2 id="panel5-heading">ECDH Live Demo</h2>
           </div>
           <p class="panel-note">This shared point is the basis of X25519, ECDH P-256, and every protocol in the key-agreement category.</p>
         </div>
@@ -407,7 +638,128 @@ function buildAppMarkup(state: AppState): string {
   `;
 }
 
+/** Redraw only the discrete-log plot and status card (used during the animated walk). */
+function updateEcdlpView(root: HTMLElement, state: AppState): void {
+  const walk = multiplesOfPoint(SMALL_FIELD_CURVE, explorerGenerator, state.ecdlpRevealed);
+  const active = walk.length ? walk[walk.length - 1] : null;
+  const trail = walk.slice(0, -1);
+
+  const plot = root.querySelector<SVGSVGElement>('#ecdlp-plot');
+  if (plot) {
+    renderCurvePlot(plot, SMALL_FIELD_CURVE, {
+      points: explorerPoints,
+      generator: explorerGenerator,
+      selected: [],
+      result: state.ecdlpTarget,
+      trail,
+      active,
+    });
+  }
+
+  const status = root.querySelector<HTMLElement>('#ecdlp-status');
+  if (status) {
+    if (state.ecdlpSolved) {
+      status.innerHTML = `
+        <p class="result-kicker">Brute-force search</p>
+        <p>Solved: <strong>k = ${state.ecdlpSecret}</strong> after ${state.ecdlpSecret} point additions.</p>
+        <p class="muted">On P-256 the same brute force needs about 2<sup>256</sup> additions — more than the number of atoms in the observable universe.</p>
+      `;
+    } else if (state.ecdlpRevealed > 0 && active) {
+      status.innerHTML = `
+        <p class="result-kicker">Brute-force search</p>
+        <p>Trying <strong>k = ${state.ecdlpRevealed}</strong>: ${state.ecdlpRevealed} · G = ${selectedPointLabel(active)}</p>
+        <p class="muted">Walking the subgroup one addition at a time…</p>
+      `;
+    }
+  }
+}
+
+/** Animate the brute-force discrete-log search; jumps straight to the answer if reduced motion is set. */
+function startEcdlpSolve(root: HTMLElement, state: AppState): void {
+  if (ecdlpTimer !== null) {
+    clearInterval(ecdlpTimer);
+    ecdlpTimer = null;
+  }
+
+  const { steps } = solveDiscreteLog(SMALL_FIELD_CURVE, explorerGenerator, state.ecdlpTarget);
+
+  if (prefersReducedMotion()) {
+    state.ecdlpRevealed = steps;
+    state.ecdlpSolved = true;
+    updateEcdlpView(root, state);
+    return;
+  }
+
+  state.ecdlpRevealed = 0;
+  state.ecdlpSolved = false;
+  ecdlpTimer = setInterval(() => {
+    state.ecdlpRevealed += 1;
+    if (state.ecdlpRevealed >= steps) {
+      state.ecdlpRevealed = steps;
+      state.ecdlpSolved = true;
+      updateEcdlpView(root, state);
+      if (ecdlpTimer !== null) {
+        clearInterval(ecdlpTimer);
+        ecdlpTimer = null;
+      }
+      return;
+    }
+    updateEcdlpView(root, state);
+  }, 280);
+}
+
+/**
+ * Capture the focused form field (by id) and its caret so a full re-render does
+ * not interrupt typing — render() replaces innerHTML, which would otherwise drop
+ * focus and reset the cursor after every keystroke.
+ */
+function captureFocus(): { id: string; start: number | null; end: number | null } | null {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !active.id) {
+    return null;
+  }
+  if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+    let start: number | null = null;
+    let end: number | null = null;
+    try {
+      // Some input types (e.g. number) throw when reading selection; ignore those.
+      start = active.selectionStart;
+      end = active.selectionEnd;
+    } catch {
+      start = null;
+      end = null;
+    }
+    return { id: active.id, start, end };
+  }
+  return { id: active.id, start: null, end: null };
+}
+
+function restoreFocus(
+  root: HTMLElement,
+  saved: { id: string; start: number | null; end: number | null } | null,
+): void {
+  if (!saved) {
+    return;
+  }
+  const el = root.ownerDocument.getElementById(saved.id);
+  if (!el) {
+    return;
+  }
+  el.focus();
+  if (
+    saved.start !== null &&
+    (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)
+  ) {
+    try {
+      el.setSelectionRange(saved.start, saved.end);
+    } catch {
+      // Selection is not supported on this element type; focus alone is enough.
+    }
+  }
+}
+
 function render(root: HTMLElement, state: AppState): void {
+  const savedFocus = captureFocus();
   root.innerHTML = buildAppMarkup(state);
   applyTheme(state.theme);
 
@@ -418,7 +770,9 @@ function render(root: HTMLElement, state: AppState): void {
       generator: SMALL_FIELD_CURVE.generator,
       selected: state.selectedPoints,
       result: state.additionResult,
-      onSelect: (point) => {
+      geometry: true,
+      focusKey: state.focusPoint,
+      onSelect: (point, viaKeyboard) => {
         if (state.selectedPoints.length === 2) {
           state.selectedPoints = [point];
           state.additionResult = null;
@@ -433,32 +787,104 @@ function render(root: HTMLElement, state: AppState): void {
           }
         }
 
+        state.focusPoint = viaKeyboard ? point : null;
         render(root, state);
       },
     });
   }
 
-  (Object.entries(COMPARISON_ANALOGS) as Array<[RealCurveId, (typeof COMPARISON_ANALOGS)[string]]>).forEach(
-    ([curveId, curve]) => {
-      const svg = root.querySelector<SVGSVGElement>(`#mini-${curveId}`);
-      if (!svg) {
-        return;
-      }
+  // focusPoint is consumed once per render so unrelated re-renders don't steal focus.
+  state.focusPoint = null;
 
-      renderCurvePlot(svg, curve, {
-        points: enumeratePoints(curve),
-        generator: null,
-        selected: [],
-        result: null,
-        compact: true,
-      });
-    },
-  );
+  (
+    Object.entries(COMPARISON_ANALOGS) as Array<[RealCurveId, (typeof COMPARISON_ANALOGS)[string]]>
+  ).forEach(([curveId, curve]) => {
+    const svg = root.querySelector<SVGSVGElement>(`#mini-${curveId}`);
+    if (!svg) {
+      return;
+    }
+
+    renderCurvePlot(svg, curve, {
+      points: enumeratePoints(curve),
+      generator: null,
+      selected: [],
+      result: null,
+      compact: true,
+    });
+  });
+
+  updateEcdlpView(root, state);
+
+  root.querySelector<HTMLButtonElement>('#ecdlp-solve')?.addEventListener('click', () => {
+    startEcdlpSolve(root, state);
+  });
+
+  root.querySelector<HTMLButtonElement>('#ecdlp-new')?.addEventListener('click', () => {
+    if (ecdlpTimer !== null) {
+      clearInterval(ecdlpTimer);
+      ecdlpTimer = null;
+    }
+    const challenge = freshDiscreteLogChallenge();
+    state.ecdlpSecret = challenge.secret;
+    state.ecdlpTarget = challenge.target;
+    state.ecdlpRevealed = 0;
+    state.ecdlpSolved = false;
+    render(root, state);
+  });
+
+  root.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const text = button.dataset.copy ?? '';
+      const restore = button.textContent;
+      void navigator.clipboard?.writeText(text).then(
+        () => {
+          button.textContent = 'Copied ✓';
+          button.classList.add('is-copied');
+          window.setTimeout(() => {
+            button.textContent = restore;
+            button.classList.remove('is-copied');
+          }, 1200);
+        },
+        () => {
+          button.textContent = 'Copy failed';
+          window.setTimeout(() => {
+            button.textContent = restore;
+          }, 1200);
+        },
+      );
+    });
+  });
+
+  root.querySelector<HTMLButtonElement>('#share-link')?.addEventListener('click', (event) => {
+    syncUrl(state);
+    const button = event.currentTarget as HTMLButtonElement;
+    const restore = button.textContent;
+    void navigator.clipboard?.writeText(window.location.href).then(
+      () => {
+        button.textContent = 'Link copied ✓';
+        button.classList.add('is-copied');
+        window.setTimeout(() => {
+          button.textContent = restore;
+          button.classList.remove('is-copied');
+        }, 1400);
+      },
+      () => {
+        button.textContent = 'Copy failed';
+        window.setTimeout(() => {
+          button.textContent = restore;
+        }, 1400);
+      },
+    );
+  });
 
   root.querySelector<HTMLButtonElement>('#theme-toggle')?.addEventListener('click', () => {
     state.theme = state.theme === 'dark' ? 'light' : 'dark';
     render(root, state);
   });
+
+  if (urlSyncEnabled) {
+    syncUrl(state);
+  }
 
   root.querySelectorAll<HTMLButtonElement>('[data-scalar-mode]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -468,38 +894,47 @@ function render(root: HTMLElement, state: AppState): void {
     });
   });
 
-  root.querySelector<HTMLInputElement>('#small-scalar-input')?.addEventListener('input', (event) => {
-    const value = Number((event.currentTarget as HTMLInputElement).value);
-    if (!Number.isNaN(value)) {
-      state.smallScalar = Math.max(1, Math.min(20, Math.trunc(value)));
-      render(root, state);
-    }
-  });
+  root
+    .querySelector<HTMLInputElement>('#small-scalar-input')
+    ?.addEventListener('input', (event) => {
+      const value = Number((event.currentTarget as HTMLInputElement).value);
+      if (!Number.isNaN(value)) {
+        state.smallScalar = Math.max(1, Math.min(20, Math.trunc(value)));
+        render(root, state);
+      }
+    });
 
-  root.querySelector<HTMLSelectElement>('#real-curve-select')?.addEventListener('change', (event) => {
-    state.realCurve = (event.currentTarget as HTMLSelectElement).value as RealCurveId;
-    state.realScalar = defaultScalarForCurve(state.realCurve);
-    render(root, state);
-  });
+  root
+    .querySelector<HTMLSelectElement>('#real-curve-select')
+    ?.addEventListener('change', (event) => {
+      state.realCurve = (event.currentTarget as HTMLSelectElement).value as RealCurveId;
+      state.realScalar = defaultScalarForCurve(state.realCurve);
+      render(root, state);
+    });
 
   root.querySelector<HTMLInputElement>('#real-scalar-input')?.addEventListener('input', (event) => {
     state.realScalar = (event.currentTarget as HTMLInputElement).value;
     render(root, state);
   });
 
-  root.querySelector<HTMLSelectElement>('#ecdh-curve-select')?.addEventListener('change', (event) => {
-    state.ecdhCurve = (event.currentTarget as HTMLSelectElement).value as RealCurveId;
-    state.ecdhTranscript = generateEcdhDemo(state.ecdhCurve);
-    render(root, state);
-  });
+  root
+    .querySelector<HTMLSelectElement>('#ecdh-curve-select')
+    ?.addEventListener('change', (event) => {
+      state.ecdhCurve = (event.currentTarget as HTMLSelectElement).value as RealCurveId;
+      state.ecdhTranscript = generateEcdhDemo(state.ecdhCurve);
+      render(root, state);
+    });
 
   root.querySelector<HTMLButtonElement>('#ecdh-generate')?.addEventListener('click', () => {
     state.ecdhTranscript = generateEcdhDemo(state.ecdhCurve);
     render(root, state);
   });
+
+  restoreFocus(root, savedFocus);
 }
 
 export function initApp(root: HTMLElement): void {
+  const challenge = freshDiscreteLogChallenge();
   const initialState: AppState = {
     theme: detectTheme(),
     selectedPoints: [],
@@ -510,7 +945,16 @@ export function initApp(root: HTMLElement): void {
     realScalar: defaultScalarForCurve('p256'),
     ecdhCurve: 'p256',
     ecdhTranscript: generateEcdhDemo('p256'),
+    focusPoint: null,
+    ecdlpSecret: challenge.secret,
+    ecdlpTarget: challenge.target,
+    ecdlpRevealed: 0,
+    ecdlpSolved: false,
   };
 
+  applyUrlState(initialState);
+  // Keep the first render from touching the URL; enable mirroring for later interactions.
+  urlSyncEnabled = false;
   render(root, initialState);
+  urlSyncEnabled = true;
 }
