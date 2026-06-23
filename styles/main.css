@@ -953,3 +953,7 @@ select {
     border: 2px solid ButtonText;
   }
 }
+
+
+/* ═══ Accessibility: WCAG AA contrast overrides (auto-added) ═══ */
+[data-theme="dark"] .copy-btn.is-copied { background-color: #af603c; } /* was #ff8c57 on #ffffff = 2.30:1 → 4.60:1 */
