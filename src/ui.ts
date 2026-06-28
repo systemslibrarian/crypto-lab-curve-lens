@@ -632,6 +632,7 @@ function buildAppMarkup(state: AppState): string {
       </main>
 
       <footer class="footer" role="contentinfo">
+        <p class="related-demos">Related demos: <a href="https://systemslibrarian.github.io/crypto-lab-key-exchange/">key-exchange</a> · <a href="https://systemslibrarian.github.io/crypto-lab-curve448/">curve448</a> · <a href="https://systemslibrarian.github.io/crypto-lab-x3dh-wire/">x3dh-wire</a> · <a href="https://systemslibrarian.github.io/crypto-lab-ratchet-wire/">ratchet-wire</a> · <a href="https://systemslibrarian.github.io/crypto-lab-hybrid-wire/">hybrid-wire</a></p>
         <p>So whether you eat or drink or whatever you do, do it all for the glory of God. — 1 Corinthians 10:31</p>
       </footer>
     </div>
