@@ -48,6 +48,7 @@ npm run dev
 
 ## Related Demos
 
+- [crypto-lab-ec-point-arithmetic](https://systemslibrarian.github.io/crypto-lab-ec-point-arithmetic/) — the geometric foundation beneath this demo: drag points to see the chord-and-tangent group law over ℝ, then the identical algebra over 𝔽ₚ.
 - [crypto-lab-key-exchange](https://systemslibrarian.github.io/crypto-lab-key-exchange/) — Diffie-Hellman through ECDH, X25519, and ML-KEM in one comparison.
 - [crypto-lab-curve448](https://systemslibrarian.github.io/crypto-lab-curve448/) — the higher-security X448/Ed448 sibling to Curve25519 (RFC 7748/8032).
 - [crypto-lab-x3dh-wire](https://systemslibrarian.github.io/crypto-lab-x3dh-wire/) — chains X25519 ECDH into Signal's initial key agreement.
