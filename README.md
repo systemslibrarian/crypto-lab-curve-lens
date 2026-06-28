@@ -69,6 +69,6 @@ The finite-field arithmetic, the `@noble/curves` integration, and the rendered U
 
 ---
 
-*One of 120+ browser demos in the [Crypto Lab](https://crypto-lab.systemslibrarian.dev/) suite.*
+_One of 120+ browser demos in the [Crypto Lab](https://crypto-lab.systemslibrarian.dev/) suite._
 
-*"So whether you eat or drink or whatever you do, do it all for the glory of God." — 1 Corinthians 10:31*
+_"So whether you eat or drink or whatever you do, do it all for the glory of God." — 1 Corinthians 10:31_
