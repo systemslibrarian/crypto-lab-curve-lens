@@ -551,6 +551,12 @@ select {
   min-width: 0;
 }
 
+.verification-item > [role='status'] {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
 .verification-item span,
 .step-list p {
   overflow-wrap: anywhere;

@@ -248,9 +248,11 @@ function verificationMarkup(): string {
   return verificationSuite
     .map(
       (result) => `
-        <li class="verification-item ${result.passed ? 'is-pass' : 'is-fail'}" role="status" aria-label="${result.title}: ${result.passed ? 'passed' : 'failed'}">
-          <strong>${result.passed ? '✓' : '✗'} ${result.title}</strong>
-          <span>${result.detail}</span>
+        <li class="verification-item ${result.passed ? 'is-pass' : 'is-fail'}">
+          <div role="status" aria-label="${result.title}: ${result.passed ? 'passed' : 'failed'}">
+            <strong>${result.passed ? '✓' : '✗'} ${result.title}</strong>
+            <span>${result.detail}</span>
+          </div>
         </li>
       `,
     )
