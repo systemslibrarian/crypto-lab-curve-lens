@@ -7,7 +7,7 @@
   top: 0;
   z-index: 9999;
   padding: 0.75rem 1.25rem;
-  background: var(--accent);
+  background-color: var(--accent);
   color: #fff;
   font-weight: 700;
   border-radius: 0 0 12px 12px;
@@ -39,7 +39,7 @@
   --text: #1d1a16;
   --muted: #5d554d;
   --border: rgba(61, 43, 31, 0.16);
-  --accent: #be5a2a;
+  --accent: #b04f21; /* was #be5a2a: white text on it was 4.48:1, now 5.27:1 */
   --accent-soft: rgba(190, 90, 42, 0.14);
   --accent-strong: #742f14;
   --success: #1f7a56;
@@ -100,6 +100,8 @@
 html {
   scroll-behavior: smooth;
   overflow-x: clip;
+  /* WebKit reports body->canvas background propagation as transparent; set it here too */
+  background-color: var(--bg);
 }
 
 body {
@@ -152,7 +154,7 @@ select {
 .footer {
   border: 1px solid var(--border);
   border-radius: 28px;
-  background: var(--panel);
+  background-color: var(--panel);
   box-shadow: var(--shadow);
   backdrop-filter: blur(24px);
 }
@@ -212,13 +214,13 @@ select {
 
 .category-chip,
 .github-badge {
-  background: rgba(255, 255, 255, 0.4);
+  background-color: rgba(255, 255, 255, 0.4);
 }
 
 .primitive-chip,
 .badge-link,
 .status-pill {
-  background: var(--accent-soft);
+  background-color: var(--accent-soft);
 }
 
 .badge-link,
@@ -323,7 +325,7 @@ dt {
 }
 
 .segment.is-active {
-  background: var(--accent-soft);
+  background-color: var(--accent-soft);
   border-color: rgba(190, 90, 42, 0.35);
 }
 
@@ -332,7 +334,7 @@ dt {
   height: 2.6rem;
   border-radius: 50%;
   border: 1px solid var(--border);
-  background: var(--panel);
+  background-color: var(--panel);
   color: var(--text);
   cursor: pointer;
   font-size: 1.25rem;
@@ -356,7 +358,7 @@ dt {
 }
 
 .theme-toggle-btn:hover {
-  background: var(--accent-soft);
+  background-color: var(--accent-soft);
   border-color: var(--accent);
   transform: translateY(-1px);
 }
@@ -434,7 +436,7 @@ dt {
 .actor-card {
   border: 1px solid var(--border);
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.04);
+  background-color: rgba(255, 255, 255, 0.04);
 }
 
 .comparison-card,
@@ -472,7 +474,7 @@ dt {
 .result-card.is-error,
 .verification-item.is-fail {
   border-color: rgba(154, 47, 47, 0.45);
-  background: rgba(154, 47, 47, 0.08);
+  background-color: rgba(154, 47, 47, 0.08);
 }
 
 .point-result,
@@ -503,11 +505,19 @@ select {
   width: 100%;
   border-radius: 16px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.06);
   color: var(--text);
   padding: 0.82rem 0.94rem;
   min-height: 44px;
   font-size: 1rem;
+}
+
+select {
+  appearance: none;
+  padding-right: 1.8rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%238b949e' stroke-width='2' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
 }
 
 .mode-body {
@@ -537,7 +547,7 @@ select {
   border: 1px solid var(--border);
   border-radius: 18px;
   padding: 0.9rem 1rem;
-  background: rgba(255, 255, 255, 0.04);
+  background-color: rgba(255, 255, 255, 0.04);
   min-width: 0;
 }
 
@@ -550,7 +560,7 @@ select {
 
 .verification-item.is-pass {
   border-color: rgba(31, 122, 86, 0.35);
-  background: rgba(31, 122, 86, 0.07);
+  background-color: rgba(31, 122, 86, 0.07);
 }
 
 .step-list li {
@@ -566,7 +576,7 @@ select {
   aspect-ratio: 1;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: var(--accent-soft);
+  background-color: var(--accent-soft);
 }
 
 .plot-grid-line {
@@ -679,19 +689,19 @@ select {
 }
 
 .legend-dot.is-generator {
-  background: var(--grid-generator);
+  background-color: var(--grid-generator);
 }
 
 .legend-dot.is-selected {
-  background: var(--grid-selected);
+  background-color: var(--grid-selected);
 }
 
 .legend-dot.is-third {
-  background: var(--grid-third);
+  background-color: var(--grid-third);
 }
 
 .legend-dot.is-result {
-  background: var(--grid-result);
+  background-color: var(--grid-result);
 }
 
 /* ───── Copy-to-clipboard rows ───── */
@@ -710,7 +720,7 @@ select {
   cursor: pointer;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: var(--accent-soft);
+  background-color: var(--accent-soft);
   color: var(--text);
   padding: 0.4rem 0.7rem;
   font-size: 0.78rem;
@@ -727,7 +737,7 @@ select {
 }
 
 .copy-btn.is-copied {
-  background: var(--accent);
+  background-color: var(--accent);
   color: #fff;
   border-color: var(--accent);
 }
@@ -958,3 +968,11 @@ select {
 [data-theme='dark'] .copy-btn.is-copied {
   background-color: #af603c;
 } /* was #ff8c57 on #ffffff = 2.30:1 → 4.60:1 */
+
+[data-theme='dark'] .skip-link {
+  background-color: #af603c;
+} /* white text on --accent #ff8c57 was 2.30:1 → 4.60:1 */
+
+[data-theme='dark'] .primary-button {
+  color: #11171c;
+} /* white on gradient #ff8c57→#ffd3bf was 2.30:1; dark ink gives 7.86:1+ */
