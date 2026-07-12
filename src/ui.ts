@@ -507,16 +507,17 @@ function buildAppMarkup(state: AppState): string {
 
   return `
     <div class="app-shell">
-      <header class="hero" role="banner">
-        <div>
-          <div class="hero-topline">
-            <span class="category-chip">Elliptic Curves</span>
-            <a class="github-badge" href="https://github.com/systemslibrarian/crypto-lab-curve-lens" target="_blank" rel="noreferrer">GitHub</a>
-          </div>
-          <h1>Curve Lens</h1>
-          <p class="subtitle">Interactive elliptic-curve math with exact finite-field arithmetic for the toy model and @noble/curves for the production curves.</p>
+      <header class="cl-hero">
+        <div class="cl-hero-main">
+          <h1 class="cl-hero-title">Curve Lens</h1>
+          <p class="cl-hero-sub">Elliptic-curve cryptography · point addition &amp; scalar multiplication · ECDH · P-256 / Curve25519 / secp256k1</p>
+          <p class="cl-hero-desc">Explore the finite-field group law by adding points and running scalar multiplication on a toy curve, then agree on a shared secret with ECDH across real P-256, Curve25519, and secp256k1.</p>
           <div class="primitive-row" aria-label="Primitives used">${primitiveChips()}</div>
         </div>
+        <aside class="cl-hero-why" aria-label="Why it matters">
+          <span class="cl-hero-why-label">WHY IT MATTERS</span>
+          <p class="cl-hero-why-text">ECC secures TLS, Signal, SSH, and Bitcoin with far smaller keys than RSA. Its safety rests on the elliptic-curve discrete log problem: scalar multiplication is easy one way but recovering the secret scalar is infeasible.</p>
+        </aside>
         <button
           id="theme-toggle"
           class="theme-toggle-btn"
@@ -525,14 +526,6 @@ function buildAppMarkup(state: AppState): string {
       </header>
 
       <main id="main-content">
-
-      <section class="why-card" aria-labelledby="why-heading">
-        <div>
-          <p class="eyebrow">Why this matters</p>
-          <h2 id="why-heading">ECC underpins TLS, Signal, SSH, and Bitcoin</h2>
-        </div>
-        <p>Point addition and scalar multiplication are the core operations behind signatures, key agreement, and public-key compression. This demo keeps the toy arithmetic small enough to see while using real curve implementations for P-256, Curve25519, and secp256k1.</p>
-      </section>
 
       <nav class="badge-row" aria-label="Related demos">
         ${badgeLinks()}
