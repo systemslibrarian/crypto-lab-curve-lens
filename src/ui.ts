@@ -510,7 +510,7 @@ function buildAppMarkup(state: AppState): string {
       <header class="cl-hero">
         <div class="cl-hero-main">
           <h1 class="cl-hero-title">Curve Lens</h1>
-          <p class="cl-hero-sub">Elliptic-curve cryptography · point addition &amp; scalar multiplication · ECDH · P-256 / Curve25519 / secp256k1</p>
+          <p class="cl-hero-sub">Elliptic curves · group law · ECDH</p>
           <p class="cl-hero-desc">Explore the finite-field group law by adding points and running scalar multiplication on a toy curve, then agree on a shared secret with ECDH across real P-256, Curve25519, and secp256k1.</p>
           <div class="primitive-row" aria-label="Primitives used">${primitiveChips()}</div>
         </div>
