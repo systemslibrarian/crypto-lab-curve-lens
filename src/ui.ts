@@ -10,6 +10,7 @@ import {
   mod,
   multiplesOfPoint,
   pointOrder,
+  pointsEqual,
   scalarMultiply,
   solveDiscreteLog,
   type FinitePoint,
@@ -25,13 +26,20 @@ import {
   type EcdhTranscript,
   type RealCurveId,
 } from './realcurve';
-import { renderCurvePlot } from './visualizer';
+import { renderCurvePlot, renderRealPlane } from './visualizer';
+import { REAL_PLANE_CURVE, upperY } from './realplane';
 
 type ScalarMode = 'small' | 'real';
+type FieldView = 'reals' | 'field';
 type Theme = 'light' | 'dark';
 
 interface AppState {
   theme: Theme;
+  /** Panel 1 sub-view: the smooth curve over ℝ (intuition) or the grid over 𝔽ₚ. */
+  fieldView: FieldView;
+  /** X positions of P and Q on the real-plane teaching curve (upper branch). */
+  realPx: number;
+  realQx: number;
   selectedPoints: FinitePoint[];
   additionResult: Point;
   scalarMode: ScalarMode;
@@ -40,6 +48,9 @@ interface AppState {
   realScalar: string;
   ecdhCurve: RealCurveId;
   ecdhTranscript: EcdhTranscript;
+  /** Toy ECDH private scalars for the two-lane visual (small, so they fit the grid). */
+  toyAlice: number;
+  toyBob: number;
   /** Transient: a point to move keyboard focus to after the next render. */
   focusPoint: Point;
   /** Discrete-log challenge: the hidden scalar and the public target Q = k·G. */
@@ -69,6 +80,24 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+/**
+ * Keep a real-plane slider value where the teaching curve is actually defined
+ * (rhs >= 0) and nudge it off `other` so P and Q never coincide — a chord needs
+ * two distinct points, and identical x with identical y would divide by zero.
+ */
+function clampRealX(value: number, other: number): number {
+  let x = Math.min(4, Math.max(-2.1, value));
+  // Ensure the point lies on the real curve; if not, step toward the valid region.
+  while (upperY(REAL_PLANE_CURVE, x) === null && x < 4) {
+    x = Math.round((x + 0.1) * 10) / 10;
+  }
+  if (Math.abs(x - other) < 0.1) {
+    x = x + (x >= other ? 0.1 : -0.1);
+    x = Math.min(4, Math.max(-2.1, Math.round(x * 10) / 10));
+  }
+  return Math.round(x * 10) / 10;
+}
+
 /** Pick a fresh secret scalar k in [1, generator order] and its public point Q = k·G. */
 function freshDiscreteLogChallenge(): { secret: number; target: Point } {
   const order = explorerGeneratorOrder;
@@ -77,6 +106,35 @@ function freshDiscreteLogChallenge(): { secret: number; target: Point } {
   // Keep k in [1, order-1] so the public point Q is always a finite point on the grid.
   const secret = (buffer[0] % (order - 1)) + 1;
   return { secret, target: scalarMultiply(SMALL_FIELD_CURVE, secret, explorerGenerator) };
+}
+
+/**
+ * Pick two distinct small private scalars a, b for the toy ECDH lane such that A,
+ * B and the shared point are all finite points on the demo curve (never O) and A
+ * ≠ B, so the two lanes and their meeting point are all legible on the grid.
+ */
+function freshToySecrets(): [number, number] {
+  const g = SMALL_FIELD_CURVE.generator as FinitePoint;
+  const order = explorerGeneratorOrder;
+  const pick = (): number => {
+    const buffer = new Uint32Array(1);
+    crypto.getRandomValues(buffer);
+    return (buffer[0] % (order - 3)) + 2; // in [2, order-2]
+  };
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const a = pick();
+    const b = pick();
+    if (a === b) {
+      continue;
+    }
+    const A = scalarMultiply(SMALL_FIELD_CURVE, a, g);
+    const B = scalarMultiply(SMALL_FIELD_CURVE, b, g);
+    const shared = scalarMultiply(SMALL_FIELD_CURVE, a, B);
+    if (A !== null && B !== null && shared !== null && !pointsEqual(A, B)) {
+      return [a, b];
+    }
+  }
+  return [3, 5];
 }
 
 function detectTheme(): Theme {
@@ -188,6 +246,48 @@ function primitiveChips(): string {
     <span class="primitive-chip">Curve25519</span>
     <span class="primitive-chip">secp256k1</span>
     <span class="primitive-chip">ECDH</span>
+  `;
+}
+
+/**
+ * Plain-language definitions for the vocabulary that shows up in the comparison
+ * cards below, so a newcomer never stalls on an undefined term. Kept in a native
+ * <details> so it is one control, keyboard-operable, and out of the way for pros.
+ */
+function glossaryMarkup(): string {
+  const terms: Array<[string, string]> = [
+    [
+      'Generator / base point (G)',
+      'A fixed, publicly agreed point on the curve. Every key is some secret whole-number multiple of G. Both parties in a handshake start from the same G.',
+    ],
+    [
+      'Subgroup order (n)',
+      'How many distinct points you get by adding G to itself over and over before you cycle back to the start. Private scalars are chosen in [1, n−1]; a large n is what makes the discrete log hard.',
+    ],
+    [
+      'Cofactor (h)',
+      'The full curve has h × n points; the cofactor h is the leftover factor outside the prime-order subgroup you actually use. h = 1 for P-256 and secp256k1; h = 8 for Curve25519, which is why X25519 clamps scalars to dodge small-subgroup attacks.',
+    ],
+    [
+      'Weierstrass vs Montgomery',
+      'Two equation shapes for the same idea. Short Weierstrass (y² = x³ + ax + b) is the classic form used by P-256 and secp256k1. Montgomery (By² = x³ + Ax² + x) is an alternate shape — Curve25519 uses it because it enables a very fast, constant-time "ladder".',
+    ],
+    [
+      'u-coordinate',
+      'X25519 transmits only the x-value (called u) of a point, not the full (x, y) pair. It is all you need for Diffie-Hellman, so keys and shared secrets are just 32 bytes.',
+    ],
+    [
+      'SafeCurves rating',
+      'An independent checklist (safecurves.cr.yp.to) of properties that make a curve hard to implement incorrectly. Curve25519 passes; P-256 and secp256k1 do not meet every criterion, though they remain widely deployed.',
+    ],
+  ];
+  return `
+    <details class="glossary">
+      <summary>New to these terms? Open the plain-language glossary</summary>
+      <dl class="glossary-list">
+        ${terms.map(([term, def]) => `<div><dt>${term}</dt><dd>${def}</dd></div>`).join('')}
+      </dl>
+    </details>
   `;
 }
 
@@ -314,6 +414,38 @@ function plotLegend(): string {
   `;
 }
 
+/** The lowest x for which the real teaching curve is defined (rhs >= 0), rounded up. */
+const REAL_X_MIN = -2.1;
+const REAL_X_MAX = 4;
+
+function realPlaneMarkup(state: AppState): string {
+  return `
+    <div>
+      <svg id="real-plane-plot" class="plot"></svg>
+      <div class="real-plane-controls">
+        <label>
+          <span>Move P along the curve (x = ${state.realPx.toFixed(1)})</span>
+          <input id="real-px" type="range" min="${REAL_X_MIN}" max="${REAL_X_MAX}" step="0.1" value="${state.realPx}" aria-label="Position of point P along the real curve" />
+        </label>
+        <label>
+          <span>Move Q along the curve (x = ${state.realQx.toFixed(1)})</span>
+          <input id="real-qx" type="range" min="${REAL_X_MIN}" max="${REAL_X_MAX}" step="0.1" value="${state.realQx}" aria-label="Position of point Q along the real curve" />
+        </label>
+      </div>
+    </div>
+    <div class="stacked-cards">
+      <article class="result-card">
+        <p class="result-kicker">Group law over ℝ</p>
+        <p class="muted">This is the same curve family <em>y² = x³ + ax + b</em>, but drawn over the ordinary real numbers so it is a smooth line. Slide P and Q: the straight <strong>chord</strong> through them always meets the curve at exactly one <strong>third point</strong>, coloured −(P+Q). Reflect that point straight down across the x-axis and you land on the sum <strong>P+Q</strong>. That reflect-the-third-intersection rule <em>is</em> elliptic-curve addition.</p>
+      </article>
+      <article class="result-card">
+        <p class="result-kicker">Next: same algebra, mod 17</p>
+        <p class="muted">Switch to <strong>Finite field 𝔽₁₇</strong> above. Nothing about the rule changes — you still draw the line through P and Q and reflect the third hit — but every coordinate is now reduced modulo a prime. The smooth curve becomes a scatter of dots, and the straight line <em>wraps</em> around the grid, re-entering the opposite edge. It still passes through all three points; it just looks broken until you follow it across the wrap.</p>
+      </article>
+    </div>
+  `;
+}
+
 function ecdlpPanelMarkup(state: AppState): string {
   const maxScalar = explorerGeneratorOrder - 1;
   return `
@@ -346,6 +478,39 @@ function ecdlpPanelMarkup(state: AppState): string {
   `;
 }
 
+/**
+ * Turn the raw 130-char (uncompressed) or 64-char (X25519) hex into a labelled,
+ * segmented view so a newcomer sees it is an (x, y) point, not an opaque blob.
+ * Uncompressed short-Weierstrass points are '04' ++ x(64 hex) ++ y(64 hex).
+ */
+function realPointBreakdown(curveId: RealCurveId, hex: string): string {
+  if (curveId !== 'curve25519' && hex.startsWith('04') && hex.length === 130) {
+    const x = hex.slice(2, 66);
+    const y = hex.slice(66);
+    return `
+      <p class="muted point-part-label">Public point (x, y) — the ‘04’ prefix marks it uncompressed:</p>
+      <p class="point-part"><span class="point-part-tag">x</span> ${x}</p>
+      <p class="point-part"><span class="point-part-tag">y</span> ${y}</p>
+      ${copyable(hex, 'full public point')}
+    `;
+  }
+  // X25519 sends only the 32-byte u-coordinate.
+  return `
+    <p class="muted point-part-label">Public value — for X25519 this is the 32-byte u-coordinate:</p>
+    ${copyable(hex, 'public value')}
+  `;
+}
+
+/** A collapsed bridge from the legible toy trace beside it to the real result. */
+function toyToRealNote(smallScalar: number): string {
+  return `
+    <details class="toy-real-note">
+      <summary>What changed from the toy curve?</summary>
+      <p class="muted">Nothing about the <em>method</em>. The trace on the right ran double-and-add on ~${smallScalar.toString(2).length} bits; a real curve runs the identical loop on ~256 bits. Same algorithm, same "square-and-multiply" shape, same kind of (x, y) output — only the numbers are astronomically larger, which is exactly what makes reversing k·G back to k infeasible. The toy result you can read; the real one you cannot, but it was computed the same way, live in your browser via @noble/curves.</p>
+    </details>
+  `;
+}
+
 function scalarPanelMarkup(state: AppState): string {
   const smallResult = scalarMultiply(
     SMALL_FIELD_CURVE,
@@ -364,9 +529,10 @@ function scalarPanelMarkup(state: AppState): string {
     realResultMarkup = `
       <div class="result-card">
         <p class="result-kicker">Real curve result</p>
-        ${copyable(result.resultHex, 'public point')}
+        ${realPointBreakdown(state.realCurve, result.resultHex)}
         <p class="muted">Scalar: ${normalizeScalarLabel(state.realCurve, state.realScalar)}</p>
         <p class="muted">Steps shown conceptually: ${result.stepCount}. ${result.explanation}</p>
+        ${toyToRealNote(state.smallScalar)}
       </div>
     `;
   } catch (error) {
@@ -437,6 +603,60 @@ function scalarPanelMarkup(state: AppState): string {
             )
             .join('')}
         </ol>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * The whole magic of ECDH shown on the toy curve: Alice's a·B and Bob's b·A are
+ * literally the same point-addition operation done in two orders, so they land on
+ * one shared dot. All arithmetic is exact finite-field math on the demo curve —
+ * this is a true miniature of the real exchange, not a mock-up. Colour codes each
+ * factor to its owner so a·(bG) = b·(aG) = (ab)G reads at a glance.
+ */
+function toyEcdhMarkup(state: AppState): string {
+  const g = SMALL_FIELD_CURVE.generator as FinitePoint;
+  const a = state.toyAlice;
+  const b = state.toyBob;
+  const A = scalarMultiply(SMALL_FIELD_CURVE, a, g) as FinitePoint;
+  const B = scalarMultiply(SMALL_FIELD_CURVE, b, g) as FinitePoint;
+  const aB = scalarMultiply(SMALL_FIELD_CURVE, a, B);
+  const bA = scalarMultiply(SMALL_FIELD_CURVE, b, A);
+  const shared = aB; // equal to bA by commutativity
+  const match = pointsEqual(aB, bA);
+
+  return `
+    <div class="panel-grid split-grid explorer-grid toy-ecdh">
+      <div>
+        <svg id="toy-ecdh-plot" class="plot"></svg>
+        <ul class="plot-legend" aria-label="Toy ECDH legend">
+          <li><span class="legend-dot is-generator"></span>Generator G</li>
+          <li><span class="legend-dot legend-alice"></span>Alice public A = a·G</li>
+          <li><span class="legend-dot legend-bob"></span>Bob public B = b·G</li>
+          <li><span class="legend-dot is-result"></span>Shared secret a·B = b·A</li>
+        </ul>
+      </div>
+      <div class="stacked-cards">
+        <article class="result-card">
+          <p class="result-kicker">Why they match</p>
+          <p class="toy-ecdh-eq">
+            <span class="factor-alice">a</span>·(<span class="factor-bob">b</span>·G)
+            = <span class="factor-bob">b</span>·(<span class="factor-alice">a</span>·G)
+            = (<span class="factor-alice">a</span><span class="factor-bob">b</span>)·G
+          </p>
+          <p class="muted">Scalar multiplication commutes, so Alice multiplying Bob's public point by her secret gives the exact same point as Bob multiplying Alice's public point by his. Neither ever sent their secret.</p>
+        </article>
+        <article class="result-card">
+          <p class="result-kicker"><span class="factor-alice">Alice</span> (secret a = ${a})</p>
+          <p class="muted">A = a·G = ${selectedPointLabel(A)} &nbsp;→&nbsp; a·B = ${selectedPointLabel(aB)}</p>
+          <p class="result-kicker"><span class="factor-bob">Bob</span> (secret b = ${b})</p>
+          <p class="muted">B = b·G = ${selectedPointLabel(B)} &nbsp;→&nbsp; b·A = ${selectedPointLabel(bA)}</p>
+          <p class="point-result" aria-live="polite">${
+            match ? `✓ Both reach ${selectedPointLabel(shared)}` : '✗ mismatch'
+          }</p>
+          <button class="ghost-button" type="button" id="toy-ecdh-shuffle" aria-label="Pick new random toy secrets for Alice and Bob">New secrets</button>
+        </article>
       </div>
     </div>
   `;
@@ -537,13 +757,23 @@ function buildAppMarkup(state: AppState): string {
             <p class="eyebrow">Panel 1</p>
             <h2 id="panel1-heading">Curve Explorer</h2>
           </div>
-          <p class="panel-note">Real curves use roughly 256-bit primes. This small field shows the same group law on a grid you can inspect.</p>
+          <p class="panel-note">Start with the smooth picture over the real numbers, then switch to the finite field. Same rule, same algebra — real curves just use roughly 256-bit primes instead of 17.</p>
         </div>
+        <div class="field-toggle" role="group" aria-label="Choose where the group law is drawn">
+          <button class="segment ${state.fieldView === 'reals' ? 'is-active' : ''}" data-field-view="reals" aria-pressed="${state.fieldView === 'reals'}">Reals first (ℝ)</button>
+          <button class="segment ${state.fieldView === 'field' ? 'is-active' : ''}" data-field-view="field" aria-pressed="${state.fieldView === 'field'}">Finite field 𝔽₁₇</button>
+        </div>
+        <div class="field-view ${state.fieldView === 'reals' ? 'is-active' : ''}" id="reals-view">
+          <div class="panel-grid split-grid explorer-grid">
+            ${realPlaneMarkup(state)}
+          </div>
+        </div>
+        <div class="field-view ${state.fieldView === 'field' ? 'is-active' : ''}" id="field-view">
         <div class="panel-grid split-grid explorer-grid">
           <div>
             <svg id="curve-explorer-plot" class="plot"></svg>
             ${plotLegend()}
-            <p class="muted plot-hint">Tip: press Tab to focus the grid, use the arrow keys to move between points, and Enter to select.</p>
+            <p class="muted plot-hint">Tip: press Tab to focus the grid, use the arrow keys to move between points, and Enter to select. The dashed line is <em>y ≡ λx + c</em> (mod 17) — the same straight line as over ℝ, wrapped around the grid so it still passes through P, Q, and −(P+Q).</p>
           </div>
           <div class="stacked-cards">
             <article class="result-card">
@@ -553,7 +783,7 @@ function buildAppMarkup(state: AppState): string {
             </article>
             <article class="result-card">
               <p class="result-kicker">The group law</p>
-              <p class="muted">To add P + Q, draw the line through them; it meets the curve at a third point −(P+Q). Reflect that across the horizontal mid-line (y → p−y) to get the sum. Over a finite field the line wraps modulo p, so the third point can reappear elsewhere on the grid.</p>
+              <p class="muted">To add P + Q, draw the line through them; it meets the curve at a third point −(P+Q). Reflect that across the horizontal mid-line (y → p−y) to get the sum. Over a finite field the line wraps modulo p, so it leaves one edge of the grid and re-enters the opposite edge — the dashed segments are still one straight line, and they pass through P, Q, and −(P+Q) exactly.</p>
             </article>
             <article class="result-card">
               <p class="result-kicker">Selections</p>
@@ -571,6 +801,7 @@ function buildAppMarkup(state: AppState): string {
               }
             </article>
           </div>
+        </div>
         </div>
       </section>
 
@@ -607,6 +838,7 @@ function buildAppMarkup(state: AppState): string {
           </div>
           <p class="panel-note">All three are broken by Shor's algorithm on a sufficiently large fault-tolerant quantum computer. The mini-plots are small-field analogs that preserve equation family, not production-field coordinates.</p>
         </div>
+        ${glossaryMarkup()}
         <div class="comparison-grid">
           ${comparisonCards()}
         </div>
@@ -620,6 +852,10 @@ function buildAppMarkup(state: AppState): string {
           </div>
           <p class="panel-note">This shared point is the basis of X25519, ECDH P-256, and every protocol in the key-agreement category.</p>
         </div>
+        <h3 class="subheading">See it on the toy curve first</h3>
+        <p class="panel-note">Before the hex, watch the whole trick on the small curve: Alice and Bob start from the public generator G, each multiply it by a private secret, swap the results, then multiply again — and land on the identical dot.</p>
+        ${toyEcdhMarkup(state)}
+        <h3 class="subheading">Now on a real curve</h3>
         ${ecdhPanelMarkup(state)}
         <p class="crosslink-note">See also <a href="https://github.com/systemslibrarian/crypto-lab-ratchet-wire" target="_blank" rel="noreferrer">crypto-lab-ratchet-wire</a> and <a href="https://github.com/systemslibrarian/crypto-lab-x3dh-wire" target="_blank" rel="noreferrer">crypto-lab-x3dh-wire</a>.</p>
       </section>
@@ -792,6 +1028,34 @@ function render(root: HTMLElement, state: AppState): void {
   // focusPoint is consumed once per render so unrelated re-renders don't steal focus.
   state.focusPoint = null;
 
+  const realPlanePlot = root.querySelector<SVGSVGElement>('#real-plane-plot');
+  if (realPlanePlot) {
+    renderRealPlane(realPlanePlot, { px: state.realPx, qx: state.realQx });
+  }
+
+  root.querySelectorAll<HTMLButtonElement>('[data-field-view]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.fieldView = button.dataset.fieldView as FieldView;
+      render(root, state);
+    });
+  });
+
+  root.querySelector<HTMLInputElement>('#real-px')?.addEventListener('input', (event) => {
+    state.realPx = clampRealX(
+      Number((event.currentTarget as HTMLInputElement).value),
+      state.realQx,
+    );
+    render(root, state);
+  });
+
+  root.querySelector<HTMLInputElement>('#real-qx')?.addEventListener('input', (event) => {
+    state.realQx = clampRealX(
+      Number((event.currentTarget as HTMLInputElement).value),
+      state.realPx,
+    );
+    render(root, state);
+  });
+
   (
     Object.entries(COMPARISON_ANALOGS) as Array<[RealCurveId, (typeof COMPARISON_ANALOGS)[string]]>
   ).forEach(([curveId, curve]) => {
@@ -926,6 +1190,29 @@ function render(root: HTMLElement, state: AppState): void {
     render(root, state);
   });
 
+  const toyPlot = root.querySelector<SVGSVGElement>('#toy-ecdh-plot');
+  if (toyPlot) {
+    const g = SMALL_FIELD_CURVE.generator as FinitePoint;
+    const aPub = scalarMultiply(SMALL_FIELD_CURVE, state.toyAlice, g);
+    const bPub = scalarMultiply(SMALL_FIELD_CURVE, state.toyBob, g);
+    const shared = scalarMultiply(SMALL_FIELD_CURVE, state.toyAlice, bPub);
+    renderCurvePlot(toyPlot, SMALL_FIELD_CURVE, {
+      points: explorerPoints,
+      generator: g,
+      selected: [],
+      result: shared,
+      alice: aPub,
+      bob: bPub,
+    });
+  }
+
+  root.querySelector<HTMLButtonElement>('#toy-ecdh-shuffle')?.addEventListener('click', () => {
+    const [a, b] = freshToySecrets();
+    state.toyAlice = a;
+    state.toyBob = b;
+    render(root, state);
+  });
+
   restoreFocus(root, savedFocus);
 }
 
@@ -933,6 +1220,9 @@ export function initApp(root: HTMLElement): void {
   const challenge = freshDiscreteLogChallenge();
   const initialState: AppState = {
     theme: detectTheme(),
+    fieldView: 'reals',
+    realPx: -1,
+    realQx: 2,
     selectedPoints: [],
     additionResult: null,
     scalarMode: 'small',
@@ -941,6 +1231,8 @@ export function initApp(root: HTMLElement): void {
     realScalar: defaultScalarForCurve('p256'),
     ecdhCurve: 'p256',
     ecdhTranscript: generateEcdhDemo('p256'),
+    toyAlice: 3,
+    toyBob: 5,
     focusPoint: null,
     ecdlpSecret: challenge.secret,
     ecdlpTarget: challenge.target,

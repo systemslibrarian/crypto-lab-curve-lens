@@ -54,6 +54,8 @@
   --grid-third: #7c3aed;
   --grid-trail: #8aa0ac;
   --grid-active: #be5a2a;
+  --grid-alice: #1d5fb0; /* Alice lane — blue, 5.4:1 on light card */
+  --grid-bob: #a02f7a; /* Bob lane — magenta, 5.1:1 on light card */
   --hero-gradient:
     radial-gradient(circle at top left, rgba(190, 90, 42, 0.28), transparent 38%),
     radial-gradient(circle at top right, rgba(28, 75, 100, 0.22), transparent 34%),
@@ -86,6 +88,8 @@
   --grid-third: #c4a5ff;
   --grid-trail: #7e93a0;
   --grid-active: #ff8c57;
+  --grid-alice: #7db4ff; /* Alice lane — light blue for dark bg */
+  --grid-bob: #ff9ad4; /* Bob lane — light magenta for dark bg */
   --hero-gradient:
     radial-gradient(circle at top left, rgba(255, 140, 87, 0.22), transparent 38%),
     radial-gradient(circle at top right, rgba(92, 209, 240, 0.18), transparent 34%),
@@ -693,6 +697,14 @@ select {
   opacity: 0.85;
 }
 
+.plot-point.is-alice {
+  fill: var(--grid-alice);
+}
+
+.plot-point.is-bob {
+  fill: var(--grid-bob);
+}
+
 .plot-point.is-result {
   fill: var(--grid-result);
   animation: pulse-result 900ms ease;
@@ -716,12 +728,106 @@ select {
   font-weight: 700;
 }
 
+.plot-alice-label {
+  fill: var(--grid-alice);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.plot-bob-label {
+  fill: var(--grid-bob);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ───── Toy ECDH two-lane ───── */
+.legend-dot.legend-alice {
+  background-color: var(--grid-alice);
+}
+
+.legend-dot.legend-bob {
+  background-color: var(--grid-bob);
+}
+
+.factor-alice {
+  color: var(--grid-alice);
+  font-weight: 700;
+}
+
+.factor-bob {
+  color: var(--grid-bob);
+  font-weight: 700;
+}
+
+.toy-ecdh-eq {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 1.15rem;
+  line-height: 1.6;
+}
+
 /* ───── Group-law geometry ───── */
 .plot-chord {
   stroke: var(--grid-third);
   stroke-width: 1.6;
   stroke-dasharray: 6 5;
   opacity: 0.85;
+  fill: none;
+}
+
+/* ───── Real-plane (over ℝ) sub-panel ───── */
+.real-curve-line {
+  stroke: var(--grid-dot);
+  stroke-width: 2.2;
+  fill: none;
+}
+
+.real-point-label {
+  fill: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.field-toggle {
+  display: inline-flex;
+  gap: 0.35rem;
+  padding: 0.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background-color: rgba(255, 255, 255, 0.04);
+  margin-bottom: 0.8rem;
+}
+
+.field-toggle .segment {
+  padding: 0.5rem 0.9rem;
+  font-size: 0.85rem;
+  border-radius: 999px;
+}
+
+.real-plane-controls {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.7rem;
+}
+
+.real-plane-controls label {
+  margin-bottom: 0;
+}
+
+.real-plane-controls input[type='range'] {
+  padding: 0;
+  min-height: 24px;
+  accent-color: var(--accent);
+}
+
+.field-view {
+  display: none;
+}
+
+.field-view.is-active {
+  display: block;
 }
 
 .plot-reflect {
@@ -831,6 +937,108 @@ select {
 
 .footer {
   text-align: center;
+}
+
+/* ───── Real point breakdown (Panel 2) ───── */
+.point-part-label {
+  margin-top: 0.3rem;
+  font-size: 0.82rem;
+}
+
+.point-part {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.point-part-tag {
+  display: inline-block;
+  min-width: 1.3rem;
+  padding: 0 0.35rem;
+  margin-right: 0.35rem;
+  border-radius: 6px;
+  background-color: var(--accent-soft);
+  color: var(--text);
+  font-weight: 700;
+  text-align: center;
+}
+
+.toy-real-note,
+.glossary {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.toy-real-note {
+  padding: 0.3rem 0.8rem;
+  margin-top: 0.4rem;
+}
+
+.toy-real-note > summary {
+  cursor: pointer;
+  padding: 0.55rem 0.1rem;
+  font-weight: 700;
+  font-size: 0.88rem;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.toy-real-note > summary:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.toy-real-note p {
+  padding-bottom: 0.6rem;
+}
+
+/* ───── Glossary (Panel 4) ───── */
+.glossary {
+  padding: 0.4rem 1rem;
+}
+
+.glossary > summary {
+  cursor: pointer;
+  padding: 0.6rem 0.2rem;
+  font-weight: 700;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.glossary > summary:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.glossary-list {
+  display: grid;
+  gap: 0.9rem;
+  padding: 0.4rem 0 0.9rem;
+}
+
+.glossary-list div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.glossary-list dt {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  text-transform: none;
+  font-size: 0.92rem;
+}
+
+.glossary-list dd {
+  color: var(--muted);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 @keyframes pulse-result {

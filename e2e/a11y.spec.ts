@@ -25,10 +25,13 @@ async function revealAll(page: Page): Promise<void> {
     const style = document.createElement('style');
     style.textContent =
       '*, *::before, *::after { animation: none !important; transition: none !important; }' +
-      '.mode-body { display: block !important; }';
+      '.mode-body { display: block !important; }' +
+      // Panel 1 has two class-toggled sub-views (Reals ℝ / Finite field 𝔽ₚ);
+      // reveal both so both are scanned.
+      '.field-view { display: block !important; }';
     document.head.appendChild(style);
     // Reveal all class-toggled panels so hidden content is scanned.
-    for (const body of document.querySelectorAll('.mode-body')) {
+    for (const body of document.querySelectorAll('.mode-body, .field-view')) {
       body.classList.add('is-active');
     }
     for (const panel of document.querySelectorAll('[hidden]')) {

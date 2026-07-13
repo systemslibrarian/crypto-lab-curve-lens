@@ -203,4 +203,44 @@ describe('ECDH panel', () => {
     const root = mount();
     expect(root.querySelectorAll('.copy-btn').length).toBeGreaterThan(0);
   });
+
+  it('shows the toy ECDH lanes converging on one shared point', () => {
+    const root = mount();
+    // The two-lane diagram renders a plot with a highlighted shared (result) dot.
+    expect(root.querySelector('#toy-ecdh-plot')).not.toBeNull();
+    expect(root.querySelector('#toy-ecdh-plot .plot-point.is-result')).not.toBeNull();
+    expect(root.querySelector('#toy-ecdh-plot .plot-point.is-alice')).not.toBeNull();
+    expect(root.querySelector('#toy-ecdh-plot .plot-point.is-bob')).not.toBeNull();
+    // a·B = b·A must literally match, and the UI says so.
+    const text = root.querySelector('.toy-ecdh')?.textContent ?? '';
+    expect(text).toMatch(/Both reach/);
+  });
+
+  it('regenerates toy secrets that still converge', () => {
+    const root = mount();
+    root.querySelector<HTMLButtonElement>('#toy-ecdh-shuffle')?.click();
+    const text = root.querySelector('.toy-ecdh')?.textContent ?? '';
+    expect(text).toMatch(/Both reach/);
+    expect(text).not.toMatch(/mismatch/);
+  });
+});
+
+describe('Panel 1 reals-first view', () => {
+  it('starts on the reals (ℝ) sub-view and can switch to the finite field', () => {
+    const root = mount();
+    expect(root.querySelector('#real-plane-plot')).not.toBeNull();
+    const realsView = root.querySelector('#reals-view');
+    expect(realsView?.classList.contains('is-active')).toBe(true);
+
+    root.querySelector<HTMLButtonElement>('[data-field-view="field"]')?.click();
+    expect(root.querySelector('#field-view')?.classList.contains('is-active')).toBe(true);
+    expect(root.querySelector('#curve-explorer-plot')).not.toBeNull();
+  });
+
+  it('draws the real curve as two smooth branches', () => {
+    const root = mount();
+    expect(
+      root.querySelectorAll('#real-plane-plot polyline.real-curve-line').length,
+    ).toBeGreaterThanOrEqual(2);
+  });
 });
