@@ -470,7 +470,7 @@ function ecdlpPanelMarkup(state: AppState): string {
               ? `Solved: <strong>k = ${state.ecdlpSecret}</strong> after ${state.ecdlpSecret} point additions.`
               : 'Press “Solve” to walk G, 2·G, 3·G, … until the public point appears.'
           }</p>
-          <p class="muted">On P-256 the same brute force needs about 2<sup>256</sup> additions — more than the number of atoms in the observable universe.</p>
+          <p class="muted">On P-256 the same brute force needs about 2<sup>256</sup> additions — more than the number of atoms in the observable universe. But no attacker would walk sequentially: the best known generic attack is Pollard's rho, which solves ECDLP in about √n ≈ 2<sup>128</sup> group operations. P-256 therefore provides roughly 128-bit security, not 256.</p>
         </article>
         <div class="button-row">
           <button class="primary-button" type="button" id="ecdlp-solve">Solve by brute force</button>
@@ -901,7 +901,7 @@ function updateEcdlpView(root: HTMLElement, state: AppState): void {
       status.innerHTML = `
         <p class="result-kicker">Brute-force search</p>
         <p>Solved: <strong>k = ${state.ecdlpSecret}</strong> after ${state.ecdlpSecret} point additions.</p>
-        <p class="muted">On P-256 the same brute force needs about 2<sup>256</sup> additions — more than the number of atoms in the observable universe.</p>
+        <p class="muted">On P-256 the same brute force needs about 2<sup>256</sup> additions — more than the number of atoms in the observable universe. But no attacker would walk sequentially: the best known generic attack is Pollard's rho, which solves ECDLP in about √n ≈ 2<sup>128</sup> group operations. P-256 therefore provides roughly 128-bit security, not 256.</p>
       `;
     } else if (state.ecdlpRevealed > 0 && active) {
       status.innerHTML = `
