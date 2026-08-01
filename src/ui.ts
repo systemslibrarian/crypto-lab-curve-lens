@@ -303,7 +303,8 @@ function comparisonCards(): string {
             </div>
             <span class="status-pill">${curve.recommendedStatus}</span>
           </div>
-          <svg class="mini-plot" id="mini-${curve.id}"></svg>
+          <svg class="mini-plot" id="mini-${curve.id}" role="img"
+               aria-label="Small-field analog plot of ${curve.label}, illustrating its equation family."></svg>
           <dl>
             <div>
               <dt>Equation</dt>
@@ -421,7 +422,8 @@ const REAL_X_MAX = 4;
 function realPlaneMarkup(state: AppState): string {
   return `
     <div>
-      <svg id="real-plane-plot" class="plot"></svg>
+      <svg id="real-plane-plot" class="plot" role="group"
+           aria-label="Elliptic curve over the real numbers, showing the chord-and-tangent construction of P + Q."></svg>
       <div class="real-plane-controls">
         <label>
           <span>Move P along the curve (x = ${state.realPx.toFixed(1)})</span>
@@ -451,7 +453,8 @@ function ecdlpPanelMarkup(state: AppState): string {
   return `
     <div class="panel-grid split-grid explorer-grid">
       <div>
-        <svg id="ecdlp-plot" class="plot"></svg>
+        <svg id="ecdlp-plot" class="plot" role="group"
+             aria-label="Elliptic curve point grid showing the multiples of the generator that the discrete-log search walks through."></svg>
       </div>
       <div class="stacked-cards">
         <article class="result-card">
@@ -629,7 +632,8 @@ function toyEcdhMarkup(state: AppState): string {
   return `
     <div class="panel-grid split-grid explorer-grid toy-ecdh">
       <div>
-        <svg id="toy-ecdh-plot" class="plot"></svg>
+        <svg id="toy-ecdh-plot" class="plot" role="group"
+             aria-label="Toy ECDH point grid plotting the generator, Alice's and Bob's public points, and the shared secret."></svg>
         <ul class="plot-legend" aria-label="Toy ECDH legend">
           <li><span class="legend-dot is-generator"></span>Generator G</li>
           <li><span class="legend-dot legend-alice"></span>Alice public A = a·G</li>
@@ -771,7 +775,10 @@ function buildAppMarkup(state: AppState): string {
         <div class="field-view ${state.fieldView === 'field' ? 'is-active' : ''}" id="field-view">
         <div class="panel-grid split-grid explorer-grid">
           <div>
-            <svg id="curve-explorer-plot" class="plot"></svg>
+            <!-- role="group", not role="img": the points inside are focusable
+                 buttons with their own labels and must stay reachable. -->
+            <svg id="curve-explorer-plot" class="plot" role="group"
+                 aria-label="Interactive elliptic curve point grid over the field of 17. Use arrow keys to move between points and Enter to select."></svg>
             ${plotLegend()}
             <p class="muted plot-hint">Tip: press Tab to focus the grid, use the arrow keys to move between points, and Enter to select. The dashed line is <em>y ≡ λx + c</em> (mod 17) — the same straight line as over ℝ, wrapped around the grid so it still passes through P, Q, and −(P+Q).</p>
           </div>

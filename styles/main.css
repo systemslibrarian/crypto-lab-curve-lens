@@ -97,7 +97,6 @@
   --focus-ring: #ff8c57;
 }
 
-/* BEGIN cl-hero standard — managed, keep in sync across fleet */
 .cl-hero {
   display: flex;
   align-items: flex-start;
@@ -157,8 +156,11 @@
     flex-basis: auto;
     width: 100%;
   }
+  .cl-hero-main {
+    flex-basis: auto;
+    min-width: 0;
+  }
 }
-/* END cl-hero standard */
 
 * {
   box-sizing: border-box;
@@ -677,7 +679,14 @@ select {
 .plot-point:hover,
 .plot-point:focus-visible {
   transform: scale(1.16);
-  outline: none;
+}
+
+/* The points are real buttons (roving tabindex). The scale above is not a
+   focus indicator on its own — it is also the hover state, and it disappears
+   entirely under prefers-reduced-motion — so draw an explicit ring. */
+.plot-point:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .plot-point.is-generator {
