@@ -53,12 +53,18 @@ interface AppState {
   toyBob: number;
   /** Transient: a point to move keyboard focus to after the next render. */
   focusPoint: Point;
-  /** Discrete-log challenge: the hidden scalar and the public target Q = k·G. */
-  ecdlpSecret: number;
+  /** Discrete-log challenge: the public target Q = k·G. The k is not retained. */
   ecdlpTarget: Point;
   /** How many multiples of the walk are currently revealed (0 = not started). */
   ecdlpRevealed: number;
   ecdlpSolved: boolean;
+  /**
+   * What the brute-force search actually returned — never the secret the page
+   * already knew. null means the search has not run, or ran and found nothing.
+   */
+  ecdlpRecovered: number | null;
+  /** Point additions the search performed before it stopped. */
+  ecdlpSteps: number;
 }
 
 const explorerPoints = enumeratePoints(SMALL_FIELD_CURVE);
@@ -98,14 +104,19 @@ function clampRealX(value: number, other: number): number {
   return Math.round(x * 10) / 10;
 }
 
-/** Pick a fresh secret scalar k in [1, generator order] and its public point Q = k·G. */
-function freshDiscreteLogChallenge(): { secret: number; target: Point } {
+/**
+ * Pick a fresh secret scalar k in [1, generator order − 1] and return ONLY the
+ * public point Q = k·G. The scalar goes out of scope here on purpose: the panel
+ * can then report nothing but what the brute-force search recovers, so the
+ * "Solved" card is a result and not a replay of a number the page kept.
+ */
+function freshDiscreteLogChallenge(): Point {
   const order = explorerGeneratorOrder;
   const buffer = new Uint32Array(1);
   crypto.getRandomValues(buffer);
   // Keep k in [1, order-1] so the public point Q is always a finite point on the grid.
   const secret = (buffer[0] % (order - 1)) + 1;
-  return { secret, target: scalarMultiply(SMALL_FIELD_CURVE, secret, explorerGenerator) };
+  return scalarMultiply(SMALL_FIELD_CURVE, secret, explorerGenerator);
 }
 
 /**
@@ -448,6 +459,35 @@ function realPlaneMarkup(state: AppState): string {
   `;
 }
 
+const ECDLP_SCALE_NOTE = `<p class="muted">On P-256 the same brute force needs about 2<sup>256</sup> additions — more than the number of atoms in the observable universe. But no attacker would walk sequentially: the best known generic attack is Pollard's rho, which solves ECDLP in about √n ≈ 2<sup>128</sup> group operations. P-256 therefore provides roughly 128-bit security, not 256.</p>`;
+
+/**
+ * Report the search's OWN answer, then re-derive k·G and compare it to the
+ * published Q. The page knows the secret, but nothing here is read from it:
+ * if the group law were wrong, the walk would miss and this card would say so
+ * instead of printing a number it already had.
+ */
+function ecdlpSolvedMarkup(state: AppState): string {
+  const recovered = state.ecdlpRecovered;
+  if (recovered === null) {
+    return `
+      <p>No k found: the walk covered all ${state.ecdlpSteps} multiples of G without hitting Q.</p>
+      <p class="muted">On this curve every point in ⟨G⟩ has a discrete log, so an exhausted search means Q is not in the subgroup — or the arithmetic is broken.</p>
+    `;
+  }
+
+  const check = scalarMultiply(SMALL_FIELD_CURVE, recovered, explorerGenerator);
+  const verified = pointsEqual(check, state.ecdlpTarget);
+  return `
+    <p>Solved: <strong>k = ${recovered}</strong> after ${state.ecdlpSteps} point additions.</p>
+    <p class="muted">Check, recomputed from the recovered scalar: ${recovered} · G = ${selectedPointLabel(check)} ${
+      verified
+        ? `= Q ✓`
+        : `≠ Q = ${selectedPointLabel(state.ecdlpTarget)} ✗ — the search returned a scalar that does not reproduce the challenge point.`
+    }</p>
+  `;
+}
+
 function ecdlpPanelMarkup(state: AppState): string {
   const maxScalar = explorerGeneratorOrder - 1;
   return `
@@ -465,12 +505,12 @@ function ecdlpPanelMarkup(state: AppState): string {
         </article>
         <article class="result-card" id="ecdlp-status" aria-live="polite">
           <p class="result-kicker">Brute-force search</p>
-          <p>${
+          ${
             state.ecdlpSolved
-              ? `Solved: <strong>k = ${state.ecdlpSecret}</strong> after ${state.ecdlpSecret} point additions.`
-              : 'Press “Solve” to walk G, 2·G, 3·G, … until the public point appears.'
-          }</p>
-          <p class="muted">On P-256 the same brute force needs about 2<sup>256</sup> additions — more than the number of atoms in the observable universe. But no attacker would walk sequentially: the best known generic attack is Pollard's rho, which solves ECDLP in about √n ≈ 2<sup>128</sup> group operations. P-256 therefore provides roughly 128-bit security, not 256.</p>
+              ? ecdlpSolvedMarkup(state)
+              : '<p>Press “Solve” to walk G, 2·G, 3·G, … until the public point appears.</p>'
+          }
+          ${ECDLP_SCALE_NOTE}
         </article>
         <div class="button-row">
           <button class="primary-button" type="button" id="ecdlp-solve">Solve by brute force</button>
@@ -900,8 +940,8 @@ function updateEcdlpView(root: HTMLElement, state: AppState): void {
     if (state.ecdlpSolved) {
       status.innerHTML = `
         <p class="result-kicker">Brute-force search</p>
-        <p>Solved: <strong>k = ${state.ecdlpSecret}</strong> after ${state.ecdlpSecret} point additions.</p>
-        <p class="muted">On P-256 the same brute force needs about 2<sup>256</sup> additions — more than the number of atoms in the observable universe. But no attacker would walk sequentially: the best known generic attack is Pollard's rho, which solves ECDLP in about √n ≈ 2<sup>128</sup> group operations. P-256 therefore provides roughly 128-bit security, not 256.</p>
+        ${ecdlpSolvedMarkup(state)}
+        ${ECDLP_SCALE_NOTE}
       `;
     } else if (state.ecdlpRevealed > 0 && active) {
       status.innerHTML = `
@@ -920,7 +960,9 @@ function startEcdlpSolve(root: HTMLElement, state: AppState): void {
     ecdlpTimer = null;
   }
 
-  const { steps } = solveDiscreteLog(SMALL_FIELD_CURVE, explorerGenerator, state.ecdlpTarget);
+  const { k, steps } = solveDiscreteLog(SMALL_FIELD_CURVE, explorerGenerator, state.ecdlpTarget);
+  state.ecdlpRecovered = k;
+  state.ecdlpSteps = steps;
 
   if (prefersReducedMotion()) {
     state.ecdlpRevealed = steps;
@@ -1091,11 +1133,11 @@ function render(root: HTMLElement, state: AppState): void {
       clearInterval(ecdlpTimer);
       ecdlpTimer = null;
     }
-    const challenge = freshDiscreteLogChallenge();
-    state.ecdlpSecret = challenge.secret;
-    state.ecdlpTarget = challenge.target;
+    state.ecdlpTarget = freshDiscreteLogChallenge();
     state.ecdlpRevealed = 0;
     state.ecdlpSolved = false;
+    state.ecdlpRecovered = null;
+    state.ecdlpSteps = 0;
     render(root, state);
   });
 
@@ -1224,7 +1266,6 @@ function render(root: HTMLElement, state: AppState): void {
 }
 
 export function initApp(root: HTMLElement): void {
-  const challenge = freshDiscreteLogChallenge();
   const initialState: AppState = {
     theme: detectTheme(),
     fieldView: 'reals',
@@ -1241,10 +1282,11 @@ export function initApp(root: HTMLElement): void {
     toyAlice: 3,
     toyBob: 5,
     focusPoint: null,
-    ecdlpSecret: challenge.secret,
-    ecdlpTarget: challenge.target,
+    ecdlpTarget: freshDiscreteLogChallenge(),
     ecdlpRevealed: 0,
     ecdlpSolved: false,
+    ecdlpRecovered: null,
+    ecdlpSteps: 0,
   };
 
   applyUrlState(initialState);

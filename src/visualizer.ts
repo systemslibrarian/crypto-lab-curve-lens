@@ -558,4 +558,23 @@ export function renderRealPlane(svg: SVGSVGElement, options: RealPlaneOptions): 
   dot(p.x, p.y, 'plot-point is-selected', 'P', -18, -8);
   dot(q.x, q.y, 'plot-point is-selected', 'Q', 9, -8);
   dot(sum.x, sum.y, 'plot-point is-result', 'P+Q', 9, 16);
+
+  // When P and Q sit close together on the steep left of the curve the chord is
+  // nearly vertical and the third intersection lands far outside this window —
+  // the two dots above are then drawn off-canvas and simply vanish. Say so,
+  // rather than letting the caption promise a construction the picture omits.
+  const inWindow = (pt: { x: number; y: number }): boolean =>
+    pt.x >= xMin && pt.x <= xMax && pt.y >= yMin && pt.y <= yMax;
+  if (!inWindow(third) || !inWindow(sum)) {
+    // 'plot-axis-label' is the existing muted small-text style in the stylesheet.
+    svg.append(
+      labelAt(
+        pad,
+        pad + 4,
+        `−(P+Q) is off this window at x ≈ ${third.x.toFixed(1)}, y ≈ ${third.y.toFixed(1)}.`,
+        'plot-axis-label',
+      ),
+      labelAt(pad, pad + 20, 'Move P and Q further apart to bring it back.', 'plot-axis-label'),
+    );
+  }
 }
