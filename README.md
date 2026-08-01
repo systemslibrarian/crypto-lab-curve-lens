@@ -12,7 +12,7 @@ The lab is built to be read top to bottom by a first-time visitor: it opens with
 - **End-to-end encrypted messaging.** Signal's X3DH and Double Ratchet protocols chain multiple ECDH operations on Curve25519 to establish and continuously refresh session keys.
 - **Hardware authenticator key generation.** FIDO2/WebAuthn uses P-256 (ES256) for credential key pairs because P-256 is supported in secure-element hardware and is FIPS-approved.
 - **Blockchain transaction signing.** secp256k1 is used in Bitcoin and Ethereum for ECDSA signatures; choose it only when compatibility with those ecosystems is required — not for general-purpose key agreement.
-- **Do not use ECDH** when post-quantum security is a requirement (NIST PQC finalists such as ML-KEM should be preferred), or when the runtime cannot guarantee a cryptographically secure random number generator for private scalar generation.
+- **Do not use ECDH** when post-quantum security is a requirement (NIST PQC standards such as ML-KEM / FIPS 203 should be preferred), or when the runtime cannot guarantee a cryptographically secure random number generator for private scalar generation.
 - Do NOT treat this as production code — it is a browser teaching demo, not a hardened key-agreement library.
 
 ## Live Demo
@@ -35,7 +35,7 @@ The explorer grid is fully keyboard-navigable (Tab to focus the grid, arrow keys
 
 - **TLS 1.3 (RFC 8446).** X25519 and P-256 are the two most widely negotiated key-share groups; the ephemeral ECDH step in the handshake provides forward secrecy for every HTTPS connection.
 - **Signal Protocol.** X3DH (Extended Triple Diffie-Hellman) and the Double Ratchet both rely on X25519 ECDH for initial key agreement and continuous ratcheting in Signal, WhatsApp, and other adopters.
-- **WireGuard (RFC 8999).** Uses Curve25519 (X25519) as its sole key-exchange mechanism; the simplicity and speed of the curve are central to the protocol's design goals.
+- **WireGuard.** Uses Curve25519 (X25519) as its sole key-exchange mechanism; the simplicity and speed of the curve are central to the protocol's design goals.
 - **FIDO2 / WebAuthn (W3C + CTAP2).** P-256 (ES256) is the mandatory-to-implement credential algorithm for hardware security keys and platform authenticators, used in passkey authentication and hardware 2FA.
 - **Bitcoin and Ethereum.** secp256k1 is used for ECDSA transaction signing in both networks; every Bitcoin address and Ethereum account is derived from a secp256k1 public key.
 
@@ -72,6 +72,6 @@ The finite-field arithmetic, the `@noble/curves` integration, and the rendered U
 
 ---
 
-_One of 120+ browser demos in the [Crypto Lab](https://crypto-lab.systemslibrarian.dev/) suite._
+_One of 170+ browser demos in the [Crypto Lab](https://crypto-lab.systemslibrarian.dev/) suite._
 
 _"So whether you eat or drink or whatever you do, do it all for the glory of God." — 1 Corinthians 10:31_
