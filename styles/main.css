@@ -39,6 +39,13 @@
   --text: #1d1a16;
   --muted: #5d554d;
   --border: rgba(61, 43, 31, 0.16);
+  /* Control boundaries only (segments, ghost buttons, badge links, field toggle,
+     inputs/selects, copy button, theme toggle). Those controls are transparent or
+     filled with a 4-6% white wash that lands at 1.00-1.17:1 against the panel, so
+     the border is the sole boundary and WCAG 2.1 SC 1.4.11 requires 3:1. The
+     translucent --border resolves to ~1.35:1 and stays as-is for decorative rules
+     (panel/hero outlines, static chips and status pills). */
+  --border-control: #9c836b;
   --accent: #b04f21; /* was #be5a2a: white text on it was 4.48:1, now 5.27:1 */
   --accent-soft: rgba(190, 90, 42, 0.14);
   --accent-strong: #742f14;
@@ -73,6 +80,7 @@
   --text: #eef2f4;
   --muted: #b7c1c8;
   --border: rgba(160, 183, 198, 0.18);
+  --border-control: #54768c;
   --accent: #ff8c57;
   --accent-soft: rgba(255, 140, 87, 0.14);
   --accent-strong: #ffd3bf;
@@ -295,6 +303,7 @@ select {
 .badge-link,
 .github-badge {
   text-decoration: none;
+  border-color: var(--border-control);
 }
 
 h1,
@@ -377,6 +386,7 @@ dt {
   padding: 0.72rem 1rem;
   background: transparent;
   color: var(--text);
+  border-color: var(--border-control);
 }
 
 .primary-button {
@@ -402,7 +412,7 @@ dt {
   width: 2.6rem;
   height: 2.6rem;
   border-radius: 50%;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   background-color: var(--panel);
   color: var(--text);
   cursor: pointer;
@@ -573,7 +583,7 @@ input,
 select {
   width: 100%;
   border-radius: 16px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   background-color: rgba(255, 255, 255, 0.06);
   color: var(--text);
   padding: 0.82rem 0.94rem;
@@ -804,7 +814,7 @@ select {
   gap: 0.35rem;
   padding: 0.25rem;
   border-radius: 999px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   background-color: rgba(255, 255, 255, 0.04);
   margin-bottom: 0.8rem;
 }
@@ -903,7 +913,7 @@ select {
   flex: 0 0 auto;
   cursor: pointer;
   border-radius: 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   background-color: var(--accent-soft);
   color: var(--text);
   padding: 0.4rem 0.7rem;
