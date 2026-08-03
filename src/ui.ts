@@ -148,7 +148,19 @@ function freshToySecrets(): [number, number] {
   return [3, 5];
 }
 
+/**
+ * The shared Crypto Lab top bar owns the only *visible* theme toggle (this
+ * lab's own #theme-toggle is display:none'd by the header CSS) and it writes
+ * `data-theme` on <html> directly. So the document — not this module's state —
+ * is the authority on the current theme; read it first and fall back to
+ * storage only when the attribute is missing.
+ */
 function detectTheme(): Theme {
+  const attribute = document.documentElement.getAttribute('data-theme');
+  if (attribute === 'light' || attribute === 'dark') {
+    return attribute;
+  }
+
   const stored = window.localStorage.getItem('theme');
   if (stored === 'light' || stored === 'dark') {
     return stored;
@@ -160,6 +172,18 @@ function detectTheme(): Theme {
 function applyTheme(theme: Theme): void {
   document.documentElement.dataset.theme = theme;
   window.localStorage.setItem('theme', theme);
+}
+
+/**
+ * Adopt whatever theme the document is currently in before re-applying it.
+ * Without this, every render() overwrote `data-theme` (and localStorage) with a
+ * stale `state.theme`, so a user who pressed the top bar's toggle was snapped
+ * back to the old theme by their very next interaction with the page — and
+ * since this lab's in-page toggle is hidden, the visible control was dead.
+ */
+function syncThemeFromDocument(state: AppState): void {
+  state.theme = detectTheme();
+  applyTheme(state.theme);
 }
 
 const REAL_CURVE_IDS: RealCurveId[] = ['p256', 'curve25519', 'secp256k1'];
@@ -1041,8 +1065,10 @@ function restoreFocus(
 
 function render(root: HTMLElement, state: AppState): void {
   const savedFocus = captureFocus();
+  // Adopt the document's theme *before* building markup, so the toggle's own
+  // label/glyph is rendered for the theme the page is actually in.
+  syncThemeFromDocument(state);
   root.innerHTML = buildAppMarkup(state);
-  applyTheme(state.theme);
 
   const explorerPlot = root.querySelector<SVGSVGElement>('#curve-explorer-plot');
   if (explorerPlot) {
@@ -1188,6 +1214,9 @@ function render(root: HTMLElement, state: AppState): void {
 
   root.querySelector<HTMLButtonElement>('#theme-toggle')?.addEventListener('click', () => {
     state.theme = state.theme === 'dark' ? 'light' : 'dark';
+    // Write to the document first: render() adopts the document's theme, so a
+    // state-only flip would be read back as the old value and undone.
+    applyTheme(state.theme);
     render(root, state);
   });
 
