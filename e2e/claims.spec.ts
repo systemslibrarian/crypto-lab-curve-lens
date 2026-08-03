@@ -527,3 +527,219 @@ test('no element carrying the hidden attribute is actually rendered', async ({ p
   );
   expect(leaks, `elements marked hidden that still render: ${JSON.stringify(leaks)}`).toEqual([]);
 });
+
+/* ------------------------------------------------------- Panel 1 (reals) */
+
+type Dot = { cx: number; cy: number };
+
+async function realPlaneDots(page: Page): Promise<Record<string, Dot>> {
+  return page.locator('#real-plane-plot circle.plot-point').evaluateAll((nodes) => {
+    const out: Record<string, { cx: number; cy: number }> = {};
+    for (const node of nodes) {
+      const cls = node.getAttribute('class') ?? '';
+      const key = cls.includes('is-third') ? 'third' : cls.includes('is-result') ? 'sum' : '';
+      const cx = Number(node.getAttribute('cx'));
+      const cy = Number(node.getAttribute('cy'));
+      if (key) out[key] = { cx, cy };
+      else out[out.p ? 'q' : 'p'] = { cx, cy };
+    }
+    return out;
+  });
+}
+
+test('Panel 1 (reals): the chord really passes through P, Q and the third point, which reflects onto the sum', async ({
+  page,
+}) => {
+  await page.goto('.');
+  // The reals sub-view is the one the page opens on.
+  await expect(page.locator('[data-field-view="reals"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#reals-view')).toHaveClass(/is-active/);
+  await expect(page.locator('#real-plane-plot')).toBeVisible();
+
+  /**
+   * Measure one slider configuration. Returns the four plotted dots plus the
+   * chord's endpoints, all in the SVG's own pixel space — the picture is the
+   * claim here, so the picture is what gets checked.
+   */
+  const measure = async (): Promise<{ dots: Record<string, Dot>; chord: number[] }> => {
+    const dots = await realPlaneDots(page);
+    const chord = await page
+      .locator('#real-plane-plot line.plot-chord')
+      .evaluateAll((nodes) =>
+        nodes.flatMap((n) => ['x1', 'y1', 'x2', 'y2'].map((a) => Number(n.getAttribute(a)))),
+      );
+    return { dots, chord };
+  };
+
+  /** Signed distance of a point from the chord line, in pixels. */
+  const offChord = (chord: number[], dot: Dot): number => {
+    const [x1, y1, x2, y2] = chord;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    return Math.abs(dy * (dot.cx - x1) - dx * (dot.cy - y1)) / Math.hypot(dx, dy);
+  };
+
+  const axes: number[] = [];
+
+  for (const [px, qx] of [
+    ['-1', '2'],
+    ['-1.5', '3'],
+    ['0.5', '3.5'],
+  ]) {
+    await page.locator('#real-px').fill(px);
+    await page.locator('#real-qx').fill(qx);
+    await expect(page.locator('#real-plane-plot')).toContainText('P+Q');
+
+    const { dots, chord } = await measure();
+    for (const key of ['p', 'q', 'third', 'sum']) {
+      expect(dots[key], `no ${key} dot drawn at P.x=${px}, Q.x=${qx}`).toBeDefined();
+    }
+    expect(chord).toHaveLength(4);
+
+    // "The straight chord through P and Q always meets the curve at exactly one
+    // third point" — so all three must lie on that one drawn line.
+    for (const key of ['p', 'q', 'third']) {
+      expect(offChord(chord, dots[key]), `${key} is not on the drawn chord`).toBeLessThan(1.5);
+    }
+    // P and Q are distinct points, so the chord is a real line and not a dot.
+    expect(Math.abs(dots.p.cx - dots.q.cx)).toBeGreaterThan(2);
+
+    // "Reflect that point straight down across the x-axis and you land on P+Q":
+    // the reflection is vertical, so the two share an x...
+    expect(Math.abs(dots.third.cx - dots.sum.cx)).toBeLessThan(0.5);
+    // ...and the drawn reflection segment connects exactly those two dots.
+    const reflect = await page
+      .locator('#real-plane-plot line.plot-reflect')
+      .evaluateAll((nodes) =>
+        nodes.map((n) => ['x1', 'y1', 'x2', 'y2'].map((a) => Number(n.getAttribute(a)))),
+      );
+    expect(reflect).toHaveLength(1);
+    expect(Math.abs(reflect[0][0] - dots.third.cx)).toBeLessThan(0.5);
+    expect(Math.abs(reflect[0][1] - dots.third.cy)).toBeLessThan(0.5);
+    expect(Math.abs(reflect[0][2] - dots.sum.cx)).toBeLessThan(0.5);
+    expect(Math.abs(reflect[0][3] - dots.sum.cy)).toBeLessThan(0.5);
+    // ...and it is a genuine reflection, not a coincidence: the two sit on
+    // opposite sides of the axis.
+    expect(Math.abs(dots.third.cy - dots.sum.cy)).toBeGreaterThan(2);
+    axes.push((dots.third.cy + dots.sum.cy) / 2);
+  }
+
+  // The mirror line is the x-axis, which does not move when the sliders do. If
+  // the "reflection" were drawn to wherever the sum happened to be, this
+  // midpoint would wander with the configuration.
+  for (const axis of axes) {
+    expect(Math.abs(axis - axes[0]), `reflection axis moved: ${axes.join(', ')}`).toBeLessThan(1);
+  }
+
+  // The legend names the two constructed points the picture is built around.
+  const legend = await page.locator('.plot-legend').first().innerText();
+  expect(legend).toContain('Third intersection −(P+Q)');
+  expect(legend).toContain('Sum P+Q');
+});
+
+/* ------------------------------------------------------------------ Panel 3 */
+
+test('Panel 3: the security-scale note is arithmetically consistent with itself', async ({
+  page,
+}) => {
+  await page.goto('.');
+
+  const note = page.locator('.muted', { hasText: "Pollard's rho" }).first();
+  await expect(note).toBeVisible();
+  const text = (await note.innerText()).replace(/\s+/g, ' ');
+
+  // Superscripts survive innerText as plain digits: "2256" and "2128".
+  const brute = Number(text.match(/about 2(\d+) additions/)?.[1]);
+  const rho = Number(text.match(/about √n ≈ 2(\d+) group operations/)?.[1]);
+  const rated = Number(text.match(/roughly (\d+)-bit security, not (\d+)/)?.[1]);
+  const notRated = Number(text.match(/roughly \d+-bit security, not (\d+)/)?.[1]);
+
+  expect(Number.isFinite(brute), `scale note read: ${text}`).toBe(true);
+  // Pollard's rho is a square-root attack, so its exponent must be half.
+  expect(rho).toBe(brute / 2);
+  // ...and the quoted security level is that exponent, not the field size.
+  expect(rated).toBe(rho);
+  expect(notRated).toBe(brute);
+  expect(rated).not.toBe(notRated);
+});
+
+/* ------------------------------------------------------------------ Panel 4 */
+
+test('Panel 4: every comparison card is complete and agrees with the glossary', async ({
+  page,
+}) => {
+  await page.goto('.');
+
+  const cards = page.locator('.comparison-card');
+  const ids = await cards.evaluateAll((nodes) =>
+    nodes.map((n) => n.getAttribute('data-mini-curve') ?? ''),
+  );
+  // One card per curve the rest of the page offers — the comparison must cover
+  // exactly the curves you can actually select in panels 2 and 5.
+  const scalarCurves = await page
+    .locator('#real-curve-select option')
+    .evaluateAll((nodes) => nodes.map((n) => (n as HTMLOptionElement).value));
+  const ecdhCurves = await page
+    .locator('#ecdh-curve-select option')
+    .evaluateAll((nodes) => nodes.map((n) => (n as HTMLOptionElement).value));
+  expect([...ids].sort()).toEqual([...scalarCurves].sort());
+  expect([...ids].sort()).toEqual([...ecdhCurves].sort());
+  expect(ids).toHaveLength(3);
+
+  const cofactors: Record<string, string> = {};
+  for (const id of ids) {
+    const card = cards.filter({ has: page.locator(`[id="mini-${id}"]`) });
+    const rows = await card.locator('dl > div').evaluateAll((nodes) =>
+      nodes.map((n) => ({
+        term: (n.querySelector('dt')?.textContent ?? '').trim(),
+        value: (n.querySelector('dd')?.textContent ?? '').trim(),
+      })),
+    );
+    // Every field the README promises is present AND filled in — an empty <dd>
+    // renders as a blank row that reads like a missing property, not a bug.
+    const terms = rows.map((r) => r.term);
+    for (const required of [
+      'Equation',
+      'Prime / Field',
+      'Subgroup order',
+      'Cofactor',
+      'Generator',
+      'SafeCurves',
+      'Primary uses',
+      'Post-quantum status',
+    ]) {
+      expect(terms, `${id} is missing "${required}"`).toContain(required);
+    }
+    for (const row of rows) {
+      expect(row.value.length, `${id}: "${row.term}" rendered empty`).toBeGreaterThan(0);
+    }
+
+    // Every curve here is pre-quantum; none may be advertised otherwise.
+    const shor = rows.find((r) => r.term === 'Post-quantum status')?.value ?? '';
+    expect(shor.toLowerCase(), `${id} post-quantum status: ${shor}`).toContain('shor');
+
+    cofactors[id] = rows.find((r) => r.term === 'Cofactor')?.value ?? '';
+    await expect(card.locator('.status-pill')).not.toBeEmpty();
+
+    // The mini plot is drawn, and its accessible name says which curve it is
+    // the analog of. (renderCurvePlot rewrites the label the markup ships, so
+    // this checks the label that actually survives to the user.)
+    const heading = (await card.locator('h3').innerText()).trim();
+    await expect(card.locator('svg.mini-plot')).toHaveAttribute(
+      'aria-label',
+      new RegExp(`^${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`),
+    );
+    await expect(card.locator('svg.mini-plot circle').first()).toBeAttached();
+  }
+
+  // Cross-render: the glossary states the cofactors in prose. The cards state
+  // them as data. They have to be the same numbers.
+  const disclosure = page.locator('details', { hasText: 'glossary' }).first();
+  await disclosure.locator('summary').click();
+  await expect(disclosure).toHaveAttribute('open', '');
+  const glossary = (await disclosure.innerText()).replace(/\s+/g, ' ');
+  expect(glossary).toContain('h = 1 for P-256 and secp256k1; h = 8 for Curve25519');
+  expect(cofactors.p256).toBe('1');
+  expect(cofactors.secp256k1).toBe('1');
+  expect(cofactors.curve25519).toBe('8');
+});
