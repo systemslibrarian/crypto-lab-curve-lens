@@ -15,7 +15,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'list' : [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: 'http://localhost:4222/crypto-lab-curve-lens/',
+    baseURL: 'http://localhost:4621/crypto-lab-curve-lens/',
     colorScheme: 'dark',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
@@ -24,8 +24,8 @@ export default defineConfig({
     // Without the build, a source change that fails to compile leaves the last
     // good bundle in place and the suite passes green against code that no
     // longer builds — which silently invalidates mutation checks.
-    command: 'npm run build && npm run preview -- --port 4222 --strictPort',
-    port: 4222,
+    command: 'npm run build && npm run preview -- --port 4621 --strictPort',
+    port: 4621,
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,
   },
