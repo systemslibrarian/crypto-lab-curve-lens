@@ -37,7 +37,7 @@
   --panel: rgba(255, 249, 241, 0.9);
   --panel-strong: rgba(255, 246, 234, 0.96);
   --text: #1d1a16;
-  --muted: #5d554d;
+  --muted: #534c44;
   --border: rgba(61, 43, 31, 0.16);
   /* Control boundaries only (segments, ghost buttons, badge links, field toggle,
      inputs/selects, copy button, theme toggle). Those controls are transparent or
