@@ -23,7 +23,15 @@ export interface ScalarMultiplyResult {
   curve: RealCurveId;
   scalarHex: string;
   resultHex: string;
-  stepCount: number;
+  /**
+   * Bit length of THIS scalar. The shipped defaults are 2 (P-256) and 7 (secp256k1), so this
+   * is 2 and 3 — which is why it was wrong to label it "steps" beside a note reading "a real
+   * curve runs the identical loop on ~256 bits". The two sentences sat in one card and
+   * disagreed by two orders of magnitude at first paint.
+   */
+  scalarBits: number;
+  /** Iterations a constant-time ladder runs regardless of the scalar: the subgroup bit length. */
+  ladderIterations: number;
   explanation: string;
 }
 
@@ -33,6 +41,20 @@ export interface EcdhTranscript {
   bobPrivate: string;
   alicePublic: string;
   bobPublic: string;
+  /**
+   * The full group element both parties land on: the uncompressed point 04||x||y for the
+   * short-Weierstrass curves, the u-coordinate for X25519 (which never has a y to send).
+   */
+  aliceSharedPoint: string;
+  bobSharedPoint: string;
+  /**
+   * The ECDH shared secret Z, which is the x/u COORDINATE ONLY — 32 bytes on all three
+   * curves. NIST SP 800-56A §5.7.1.2 and RFC 5903 §9 both define Z as the x-coordinate of
+   * the shared point, not the encoded point; RFC 7748 §6.1 defines the X25519 output as the
+   * u-coordinate. This is the value a KDF is fed. The panel used to print the 65-byte
+   * encoded point under the label "Shared secret" and tell the reader that "this raw value"
+   * goes through HKDF, which is 33 bytes more than any of those specs say.
+   */
   aliceShared: string;
   bobShared: string;
 }
@@ -184,20 +206,24 @@ export function multiplyGenerator(curveId: RealCurveId, rawScalar: string): Scal
       curve: curveId,
       scalarHex: bytesToHex(scalarBytes),
       resultHex: bytesToHex(publicKey),
-      stepCount: 255,
-      explanation: 'X25519 uses a 255-step Montgomery ladder over Curve25519.',
+      scalarBits: 255,
+      ladderIterations: 255,
+      explanation:
+        'X25519 always runs a fixed 255-iteration Montgomery ladder over Curve25519, whatever the scalar is — a constant-time loop cannot let its length depend on a secret.',
     };
   }
 
   const scalar = normalizeScalarForShortWeierstrass(curveId, rawScalar);
   const curve = curveId === 'p256' ? p256 : secp256k1;
   const point = curve.ProjectivePoint.BASE.multiply(scalar);
+  const bits = curve.CURVE.n.toString(2).length;
   return {
     curve: curveId,
     scalarHex: `0x${scalar.toString(16)}`,
     resultHex: point.toHex(false),
-    stepCount: scalar.toString(2).length,
-    explanation: `${REAL_CURVES[curveId].label} scalar multiplication is computed over its exact prime field using @noble/curves.`,
+    scalarBits: scalar.toString(2).length,
+    ladderIterations: bits,
+    explanation: `${REAL_CURVES[curveId].label} scalar multiplication is computed over its exact prime field using @noble/curves. A constant-time implementation walks all ${bits} bits of the subgroup order however small the scalar is, so the loop length never leaks k.`,
   };
 }
 
@@ -226,12 +252,15 @@ export function generateEcdhDemo(curveId: RealCurveId): EcdhTranscript {
     const aliceShared = x25519.getSharedSecret(alicePrivate, bobPublic);
     const bobShared = x25519.getSharedSecret(bobPrivate, alicePublic);
 
+    // X25519's output IS the u-coordinate (RFC 7748 §6.1), so point and secret coincide.
     return {
       curve: curveId,
       alicePrivate: bytesToHex(alicePrivate),
       bobPrivate: bytesToHex(bobPrivate),
       alicePublic: bytesToHex(alicePublic),
       bobPublic: bytesToHex(bobPublic),
+      aliceSharedPoint: bytesToHex(aliceShared),
+      bobSharedPoint: bytesToHex(bobShared),
       aliceShared: bytesToHex(aliceShared),
       bobShared: bytesToHex(bobShared),
     };
@@ -244,8 +273,8 @@ export function generateEcdhDemo(curveId: RealCurveId): EcdhTranscript {
   const bobPublic = curve.getPublicKey(bobPrivate, false);
   const aliceScalar = bytesToBigInt(alicePrivate);
   const bobScalar = bytesToBigInt(bobPrivate);
-  const aliceShared = curve.ProjectivePoint.fromHex(bobPublic).multiply(aliceScalar).toHex(false);
-  const bobShared = curve.ProjectivePoint.fromHex(alicePublic).multiply(bobScalar).toHex(false);
+  const aliceSharedPoint = curve.ProjectivePoint.fromHex(bobPublic).multiply(aliceScalar);
+  const bobSharedPoint = curve.ProjectivePoint.fromHex(alicePublic).multiply(bobScalar);
 
   return {
     curve: curveId,
@@ -253,9 +282,19 @@ export function generateEcdhDemo(curveId: RealCurveId): EcdhTranscript {
     bobPrivate: bytesToHex(bobPrivate),
     alicePublic: bytesToHex(alicePublic),
     bobPublic: bytesToHex(bobPublic),
-    aliceShared,
-    bobShared,
+    aliceSharedPoint: aliceSharedPoint.toHex(false),
+    bobSharedPoint: bobSharedPoint.toHex(false),
+    aliceShared: sharedSecretZ(aliceSharedPoint),
+    bobShared: sharedSecretZ(bobSharedPoint),
   };
+}
+
+/**
+ * Z = the x-coordinate of the shared point, fixed-width big-endian (SP 800-56A §5.7.1.2,
+ * RFC 5903 §9). Not the encoded point — that is 33 bytes of framing and y the KDF never sees.
+ */
+function sharedSecretZ(point: { toAffine(): { x: bigint } }): string {
+  return bytesToHex(bigIntToFixedBytes(point.toAffine().x, 32));
 }
 
 export function defaultScalarForCurve(curveId: RealCurveId): string {

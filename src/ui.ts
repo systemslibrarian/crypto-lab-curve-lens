@@ -483,7 +483,12 @@ function realPlaneMarkup(state: AppState): string {
   `;
 }
 
-const ECDLP_SCALE_NOTE = `<p class="muted">On P-256 the same brute force needs about 2<sup>256</sup> additions — more than the number of atoms in the observable universe. But no attacker would walk sequentially: the best known generic attack is Pollard's rho, which solves ECDLP in about √n ≈ 2<sup>128</sup> group operations. P-256 therefore provides roughly 128-bit security, not 256.</p>`;
+// The old text said 2^256 additions is "more than the number of atoms in the observable
+// universe". 2^256 = 1.16 × 10^77; the atom count is usually put at 10^80, and even the low
+// end of the published range is 10^78. The comparison was wrong by roughly a thousandfold,
+// in the direction that flatters the number — and the test covering this note checked only
+// that it was consistent with ITSELF, so an external fact was never in scope.
+const ECDLP_SCALE_NOTE = `<p class="muted">On P-256 the same brute force needs about 2<sup>256</sup> ≈ 10<sup>77</sup> additions — within a few orders of magnitude of the number of atoms in the observable universe (usually put near 10<sup>80</sup>). But no attacker would walk sequentially: the best known generic attack is Pollard's rho, which solves ECDLP in about √n ≈ 2<sup>128</sup> group operations. P-256 therefore provides roughly 128-bit security, not 256.</p>`;
 
 /**
  * Report the search's OWN answer, then re-derive k·G and compare it to the
@@ -573,7 +578,7 @@ function toyToRealNote(smallScalar: number): string {
   return `
     <details class="toy-real-note">
       <summary>What changed from the toy curve?</summary>
-      <p class="muted">Nothing about the <em>method</em>. The trace on the right ran double-and-add on ~${smallScalar.toString(2).length} bits; a real curve runs the identical loop on ~256 bits. Same algorithm, same "square-and-multiply" shape, same kind of (x, y) output — only the numbers are astronomically larger, which is exactly what makes reversing k·G back to k infeasible. The toy result you can read; the real one you cannot, but it was computed the same way, live in your browser via @noble/curves.</p>
+      <p class="muted">Nothing about the <em>method</em>. The trace on the right ran double-and-add on ~${smallScalar.toString(2).length} bits of the toy scalar; a real curve runs the identical loop over a ~256-bit subgroup order — and runs the full 256 iterations even for a tiny scalar, because a constant-time loop must not shorten itself around a secret. Same algorithm, same "square-and-multiply" shape, same kind of (x, y) output — only the numbers are astronomically larger, which is exactly what makes reversing k·G back to k infeasible. The toy result you can read; the real one you cannot, but it was computed the same way, live in your browser via @noble/curves.</p>
     </details>
   `;
 }
@@ -598,7 +603,7 @@ function scalarPanelMarkup(state: AppState): string {
         <p class="result-kicker">Real curve result</p>
         ${realPointBreakdown(state.realCurve, result.resultHex)}
         <p class="muted">Scalar: ${normalizeScalarLabel(state.realCurve, state.realScalar)}</p>
-        <p class="muted">Steps shown conceptually: ${result.stepCount}. ${result.explanation}</p>
+        <p class="muted" id="real-scalar-steps">Scalar bit length: ${result.scalarBits}. Constant-time ladder iterations: ${result.ladderIterations}. ${result.explanation}</p>
         ${toyToRealNote(state.smallScalar)}
       </div>
     `;
@@ -713,7 +718,7 @@ function toyEcdhMarkup(state: AppState): string {
             = <span class="factor-bob">b</span>·(<span class="factor-alice">a</span>·G)
             = (<span class="factor-alice">a</span><span class="factor-bob">b</span>)·G
           </p>
-          <p class="muted">Scalar multiplication commutes, so Alice multiplying Bob's public point by her secret gives the exact same point as Bob multiplying Alice's public point by his. Neither ever sent their secret.</p>
+          <p class="muted">Point addition is associative, so a·(b·G) and b·(a·G) are both (ab)·G — and ab = ba because <em>integer</em> multiplication commutes. That is why Alice multiplying Bob's public point by her secret lands on the exact same point as Bob multiplying Alice's public point by his. Neither ever sent their secret.</p>
         </article>
         <article class="result-card">
           <p class="result-kicker"><span class="factor-alice">Alice</span> (secret a = ${a})</p>
@@ -728,6 +733,24 @@ function toyEcdhMarkup(state: AppState): string {
       </div>
     </div>
   `;
+}
+
+/**
+ * Say where Z came from, because it differs by curve and the difference is the point.
+ *
+ * The card used to print the 65-byte uncompressed point `04||x||y` under the label "Shared
+ * secret" for P-256 and secp256k1 — and then tell the reader "this raw value is run through
+ * a KDF". Both cited specs say otherwise: SP 800-56A §5.7.1.2 and RFC 5903 §9 define Z as
+ * the x-coordinate alone, 32 bytes, with no `04` prefix and no y. X25519's 32-byte output
+ * (RFC 7748 §6.1) was already correct, so one selector produced two different meanings for
+ * one label. Z is now the coordinate on all three curves and the encoded point is shown as
+ * what it is.
+ */
+function sharedSecretProvenance(transcript: EcdhTranscript): string {
+  if (transcript.curve === 'curve25519') {
+    return 'X25519 outputs the 32-byte u-coordinate directly — there is no y to discard (RFC 7748 §6.1).';
+  }
+  return `Both parties landed on the same point a·B = b·A; Z is its x-coordinate alone — 32 bytes, without the <code>04</code> prefix or the y-coordinate (SP 800-56A §5.7.1.2, RFC 5903 §9). The full shared point was <span class="shared-point-hex" id="ecdh-shared-point">${transcript.aliceSharedPoint}</span>.`;
 }
 
 function ecdhPanelMarkup(state: AppState): string {
@@ -750,21 +773,23 @@ function ecdhPanelMarkup(state: AppState): string {
         </label>
         <button class="primary-button" id="ecdh-generate" aria-label="Generate fresh ECDH keypairs for Alice and Bob">Generate fresh keypairs</button>
         <p class="panel-note">Alice computes a · B, Bob computes b · A, and both land on the same shared point or u-coordinate.</p>
-        <div class="result-card ${keysMatch ? '' : 'is-error'}" aria-live="polite">
-          <p class="result-kicker">Shared secret</p>
-          ${copyable(transcript.aliceShared, 'shared secret')}
+        <div class="result-card ${keysMatch ? '' : 'is-error'}" aria-live="polite" id="ecdh-shared-card">
+          <p class="result-kicker">Raw ECDH output Z — not yet a symmetric key</p>
+          ${copyable(transcript.aliceShared, 'raw ECDH output Z')}
           <p class="muted">Match: ${keysMatch ? '✓ Yes — both parties derived the same secret' : '✗ No'}</p>
-          <p class="muted">In production this raw value is run through a KDF (HKDF) before use as a symmetric key.</p>
+          <p class="muted" id="ecdh-z-note">${sharedSecretProvenance(transcript)}</p>
+          <p class="muted">In production Z is run through a KDF (HKDF) before use as a symmetric key. It is never used directly.</p>
         </div>
       </div>
       <div class="ecdh-columns">
+        <p class="panel-note teaching-view-note" id="ecdh-teaching-note"><strong>Teaching view:</strong> the private scalars below are deliberately revealed so you can follow the arithmetic. A real implementation never displays, logs or transmits them.</p>
         <article class="actor-card">
           <h3>Alice</h3>
           <p><strong>Private scalar</strong></p>
           ${copyable(transcript.alicePrivate, "Alice's private scalar")}
           <p><strong>Public point / u-coordinate</strong></p>
           ${copyable(transcript.alicePublic, "Alice's public point")}
-          <p><strong>a · B</strong></p>
+          <p><strong>a · B → Z</strong></p>
           ${copyable(transcript.aliceShared, "Alice's shared value")}
         </article>
         <article class="actor-card">
@@ -773,7 +798,7 @@ function ecdhPanelMarkup(state: AppState): string {
           ${copyable(transcript.bobPrivate, "Bob's private scalar")}
           <p><strong>Public point / u-coordinate</strong></p>
           ${copyable(transcript.bobPublic, "Bob's public point")}
-          <p><strong>b · A</strong></p>
+          <p><strong>b · A → Z</strong></p>
           ${copyable(transcript.bobShared, "Bob's shared value")}
         </article>
       </div>

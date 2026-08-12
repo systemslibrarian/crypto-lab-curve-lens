@@ -415,21 +415,30 @@ test('Panel 5 (toy): a·B, b·A and the shared-dot verdict are one and the same 
   expect(seen.size, `New secrets never changed the pair: ${[...seen]}`).toBeGreaterThan(1);
 });
 
+/**
+ * The value under the shared-secret heading must be the secret the cited specs define.
+ *
+ * This test used to assert `expectedLength = { p256: 130, secp256k1: 130, curve25519: 64 }`,
+ * under a comment reading "exactly what the panel says it is showing" — it pinned the
+ * 65-byte uncompressed point `04||x||y` as the shared secret on two of the three curves.
+ * SP 800-56A §5.7.1.2 and RFC 5903 §9 define Z as the x-coordinate alone; RFC 7748 §6.1
+ * defines X25519's output as the u-coordinate. One label meant two different things
+ * depending on the selector, and the page told the reader to feed the wrong one to HKDF.
+ *
+ * Z is now 32 bytes on all three curves, and what is asserted is the RELATIONSHIP: Z is the
+ * x-half of the shared point the page also shows, on every curve that has a y to drop.
+ */
 test('Panel 5 (real): the shared secret equals both parties’ own values on every curve', async ({
   page,
 }) => {
   await page.goto('.');
 
-  const expectedLength: Record<string, number> = {
-    p256: 130,
-    secp256k1: 130,
-    curve25519: 64,
-  };
+  let curvesWithADroppedCoordinate = 0;
 
   for (const curve of ['p256', 'curve25519', 'secp256k1']) {
     await page.locator('#ecdh-curve-select').selectOption(curve);
 
-    const sharedCard = page.locator('.result-card', { hasText: 'Shared secret' });
+    const sharedCard = page.locator('#ecdh-shared-card');
     const alice = page.locator('.actor-card', { hasText: 'Alice' });
     const bob = page.locator('.actor-card', { hasText: 'Bob' });
 
@@ -453,16 +462,31 @@ test('Panel 5 (real): the shared secret equals both parties’ own values on eve
     await expect(sharedCard).toContainText('✓ Yes — both parties derived the same secret');
     await expect(sharedCard).not.toHaveClass(/is-error/);
 
-    // Shape: uncompressed (x, y) for the Weierstrass curves, a bare
-    // u-coordinate for X25519 — exactly what the panel says it is showing.
-    expect(headline).toMatch(/^[0-9a-f]+$/);
-    expect(headline.length, `${curve}: unexpected shared-secret length`).toBe(
-      expectedLength[curve],
-    );
+    // Z is the coordinate the specs define: 32 bytes, on every curve.
+    expect(headline).toMatch(/^[0-9a-f]{64}$/);
+    expect(
+      headline.startsWith('04') && headline.length === 130,
+      `${curve}: the encoded point is being presented as the shared secret`,
+    ).toBe(false);
+
     if (curve !== 'curve25519') {
       expect(alicePublic.startsWith('04')).toBe(true);
       expect(alicePublic.length).toBe(130);
+
+      // The panel also shows the full shared point. Z must be its x half — that is the
+      // claim, and it cannot hold vacuously because the y half is checked to differ.
+      const sharedPoint = (await page.locator('#ecdh-shared-point').innerText()).trim();
+      expect(sharedPoint, `${curve}: shared point is uncompressed`).toMatch(/^04[0-9a-f]{128}$/);
+      expect(sharedPoint.slice(2, 66), `${curve}: Z is not the x-coordinate`).toBe(headline);
+      expect(sharedPoint.slice(66), `${curve}: y half is not real data`).not.toBe(headline);
+      await expect(page.locator('#ecdh-z-note')).toContainText('x-coordinate alone');
+      curvesWithADroppedCoordinate += 1;
+    } else {
+      await expect(page.locator('#ecdh-z-note')).toContainText('there is no y to discard');
     }
+
+    // The KDF instruction must name Z, not "this raw value" pointing at an encoded point.
+    await expect(sharedCard).toContainText('In production Z is run through a KDF');
 
     // Fresh keypairs really are fresh — and still agree.
     await page.locator('#ecdh-generate').click();
@@ -474,6 +498,17 @@ test('Panel 5 (real): the shared secret equals both parties’ own values on eve
     expect(regenerated).toBe(nextAlice);
     await expect(sharedCard).toContainText('✓ Yes');
   }
+
+  // Non-vacuity: the x-half relationship is the whole point of the fix, so it must actually
+  // have been exercised on the curves that encode a y at all.
+  expect(
+    curvesWithADroppedCoordinate,
+    'no short-Weierstrass curve was checked, so the x-coordinate claim was never tested',
+  ).toBe(2);
+
+  // The private scalars are on screen on purpose; the page has to say so.
+  await expect(page.locator('#ecdh-teaching-note')).toContainText('Teaching view');
+  await expect(page.locator('#ecdh-teaching-note')).toContainText('never displays, logs or transmits');
 });
 
 /* --------------------------------------------------------------- Regression */
@@ -639,7 +674,7 @@ test('Panel 1 (reals): the chord really passes through P, Q and the third point,
 
 /* ------------------------------------------------------------------ Panel 3 */
 
-test('Panel 3: the security-scale note is arithmetically consistent with itself', async ({
+test('Panel 3: the security-scale note is consistent with itself AND with arithmetic', async ({
   page,
 }) => {
   await page.goto('.');
@@ -649,7 +684,7 @@ test('Panel 3: the security-scale note is arithmetically consistent with itself'
   const text = (await note.innerText()).replace(/\s+/g, ' ');
 
   // Superscripts survive innerText as plain digits: "2256" and "2128".
-  const brute = Number(text.match(/about 2(\d+) additions/)?.[1]);
+  const brute = Number(text.match(/about 2(\d+) ≈/)?.[1]);
   const rho = Number(text.match(/about √n ≈ 2(\d+) group operations/)?.[1]);
   const rated = Number(text.match(/roughly (\d+)-bit security, not (\d+)/)?.[1]);
   const notRated = Number(text.match(/roughly \d+-bit security, not (\d+)/)?.[1]);
@@ -661,6 +696,28 @@ test('Panel 3: the security-scale note is arithmetically consistent with itself'
   expect(rated).toBe(rho);
   expect(notRated).toBe(brute);
   expect(rated).not.toBe(notRated);
+
+  /**
+   * Self-consistency is not correctness. This note also stated a fact about the world — it
+   * said 2^256 additions is "more than the number of atoms in the observable universe" —
+   * and every assertion above is equally true of that false sentence, because the note was
+   * only ever checked against itself.
+   *
+   * 2^256 = 1.16 × 10^77. The atom count is usually put near 10^80 and the published range
+   * starts at 10^78, so 2^256 is smaller than the low end by an order of magnitude.
+   */
+  const decimalExponent = Number(text.match(/≈ 10(\d+) additions/)?.[1]);
+  expect(decimalExponent, `no decimal magnitude in: ${text}`).toBe(
+    Math.floor(brute * Math.log10(2)),
+  );
+  const atomExponent = Number(text.match(/near 10(\d+)/)?.[1]);
+  expect(Number.isFinite(atomExponent), `no atom-count magnitude in: ${text}`).toBe(true);
+  expect(atomExponent, 'the atom count is larger than 2^256, not smaller').toBeGreaterThan(
+    decimalExponent,
+  );
+  expect(text, 'the note must not claim 2^256 exceeds the atom count').not.toMatch(
+    /more than the number of atoms/,
+  );
 });
 
 /* ------------------------------------------------------------------ Panel 4 */

@@ -75,6 +75,58 @@ describe('ECDH agreement', () => {
     }
   });
 
+  /**
+   * Z is the x/u coordinate, not the encoded point. SP 800-56A §5.7.1.2 and RFC 5903 §9 both
+   * define the ECDH shared secret as the x-coordinate; RFC 7748 §6.1 defines X25519's output
+   * as the u-coordinate. The panel used to hand the reader the 65-byte uncompressed point
+   * `04||x||y` under the label "Shared secret", with a note saying that value goes into HKDF.
+   *
+   * The assertion above is `aliceShared.length > 0`, which is equally true of the wrong value.
+   */
+  it('reports Z as the 32-byte coordinate, not the encoded point', () => {
+    for (const id of CURVES) {
+      const t = generateEcdhDemo(id);
+      expect(t.aliceShared, `${id}: Z must be 32 bytes`).toHaveLength(64);
+      expect(t.aliceShared, `${id}: Z is raw hex`).toMatch(/^[0-9a-f]{64}$/u);
+
+      if (id === 'curve25519') {
+        // X25519 has no y to discard: point and secret are the same 32 bytes.
+        expect(t.aliceSharedPoint).toBe(t.aliceShared);
+        continue;
+      }
+
+      // The encoded point is still shown, and Z must be exactly the x half of it.
+      expect(t.aliceSharedPoint, `${id}: shared point is uncompressed`).toMatch(
+        /^04[0-9a-f]{128}$/u,
+      );
+      expect(
+        t.aliceSharedPoint.slice(2, 66),
+        `${id}: Z is the x-coordinate of the shared point`,
+      ).toBe(t.aliceShared);
+      expect(t.aliceSharedPoint).toBe(t.bobSharedPoint);
+      // The dropped half is real data, so this is not a no-op re-encoding.
+      expect(t.aliceSharedPoint.slice(66)).not.toBe(t.aliceShared);
+    }
+  });
+
+  it('quotes a scalar bit length and a ladder length that mean different things', () => {
+    // The shipped defaults are tiny scalars (2 and 7) and the card sits beside a note about
+    // ~256-bit loops, so the two numbers must be reported separately, not conflated as "steps".
+    const p256Default = multiplyGenerator('p256', defaultScalarForCurve('p256'));
+    expect(p256Default.scalarBits).toBe(2);
+    expect(p256Default.ladderIterations).toBe(256);
+    const secp = multiplyGenerator('secp256k1', defaultScalarForCurve('secp256k1'));
+    expect(secp.scalarBits).toBe(3);
+    expect(secp.ladderIterations).toBe(256);
+    // A large scalar moves one number and not the other.
+    const big = multiplyGenerator('p256', '12345678901234567890');
+    expect(big.scalarBits).toBe(64);
+    expect(big.ladderIterations).toBe(p256Default.ladderIterations);
+    // X25519's ladder is fixed by construction and does not depend on the scalar at all.
+    expect(multiplyGenerator('curve25519', defaultScalarForCurve('curve25519')).ladderIterations)
+      .toBe(255);
+  });
+
   it('produces fresh key material on each call', () => {
     const first = generateEcdhDemo('p256');
     const second = generateEcdhDemo('p256');
