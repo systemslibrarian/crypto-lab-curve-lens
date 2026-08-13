@@ -508,7 +508,9 @@ test('Panel 5 (real): the shared secret equals both parties’ own values on eve
 
   // The private scalars are on screen on purpose; the page has to say so.
   await expect(page.locator('#ecdh-teaching-note')).toContainText('Teaching view');
-  await expect(page.locator('#ecdh-teaching-note')).toContainText('never displays, logs or transmits');
+  await expect(page.locator('#ecdh-teaching-note')).toContainText(
+    'never displays, logs or transmits',
+  );
 });
 
 /* --------------------------------------------------------------- Regression */
@@ -799,4 +801,48 @@ test('Panel 4: every comparison card is complete and agrees with the glossary', 
   expect(cofactors.p256).toBe('1');
   expect(cofactors.secp256k1).toBe('1');
   expect(cofactors.curve25519).toBe('8');
+});
+
+/* --------------------------------------------------------------- Chrome */
+
+test('exactly one skip link exists, it is the first tab stop, and its target renders', async ({
+  page,
+}) => {
+  await page.goto('.');
+  await expect(page.locator('.cl-hero-title')).toBeVisible();
+
+  // One skip link, not the former duplicated pair (#app + #main-content).
+  const skipLinks = page.locator('a', { hasText: /skip to/i });
+  await expect(skipLinks).toHaveCount(1);
+  await expect(skipLinks.first()).toHaveAttribute('href', '#main-content');
+  await expect(page.locator('#main-content')).toHaveCount(1);
+
+  // It must be the first tab stop so keyboard users can bypass the sticky bar.
+  await page.keyboard.press('Tab');
+  const focused = await page.evaluate(
+    () => (document.activeElement as HTMLAnchorElement | null)?.getAttribute('href') ?? '',
+  );
+  expect(focused).toBe('#main-content');
+});
+
+test('related-demo cross-links open the live labs, not their source repositories', async ({
+  page,
+}) => {
+  await page.goto('.');
+  await expect(page.locator('.cl-hero-title')).toBeVisible();
+
+  const hrefs = await page
+    .locator('.badge-row a, .crosslink-note a, .related-demos a')
+    .evaluateAll((nodes) => nodes.map((n) => n.getAttribute('href') ?? ''));
+  expect(hrefs.length).toBeGreaterThanOrEqual(6);
+  for (const href of hrefs) {
+    expect(href, `cross-link must be a live demo page: ${href}`).toMatch(
+      /^https:\/\/systemslibrarian\.github\.io\//,
+    );
+  }
+
+  // The source link survives, in the shared top bar only.
+  await expect(
+    page.locator('.cl-topbar a[href="https://github.com/systemslibrarian/crypto-lab-curve-lens"]'),
+  ).toHaveCount(1);
 });

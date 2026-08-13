@@ -268,10 +268,10 @@ function syncUrl(state: AppState): void {
 
 function badgeLinks(): string {
   return `
-    <a class="badge-link" href="https://github.com/systemslibrarian/crypto-lab-x3dh-wire" target="_blank" rel="noreferrer">crypto-lab-x3dh-wire</a>
-    <a class="badge-link" href="https://github.com/systemslibrarian/crypto-lab-ratchet-wire" target="_blank" rel="noreferrer">crypto-lab-ratchet-wire</a>
-    <a class="badge-link" href="https://github.com/systemslibrarian/crypto-lab-iron-letter" target="_blank" rel="noreferrer">crypto-lab-iron-letter</a>
-    <a class="badge-link" href="https://github.com/systemslibrarian/crypto-compare" target="_blank" rel="noreferrer">crypto-compare · Elliptic Curves</a>
+    <a class="badge-link" href="https://systemslibrarian.github.io/crypto-lab-x3dh-wire/" target="_blank" rel="noreferrer">crypto-lab-x3dh-wire</a>
+    <a class="badge-link" href="https://systemslibrarian.github.io/crypto-lab-ratchet-wire/" target="_blank" rel="noreferrer">crypto-lab-ratchet-wire</a>
+    <a class="badge-link" href="https://systemslibrarian.github.io/crypto-lab-iron-letter/" target="_blank" rel="noreferrer">crypto-lab-iron-letter</a>
+    <a class="badge-link" href="https://systemslibrarian.github.io/crypto-compare/" target="_blank" rel="noreferrer">crypto-compare · Elliptic Curves</a>
   `;
 }
 
@@ -953,7 +953,7 @@ function buildAppMarkup(state: AppState): string {
         ${toyEcdhMarkup(state)}
         <h3 class="subheading">Now on a real curve</h3>
         ${ecdhPanelMarkup(state)}
-        <p class="crosslink-note">See also <a href="https://github.com/systemslibrarian/crypto-lab-ratchet-wire" target="_blank" rel="noreferrer">crypto-lab-ratchet-wire</a> and <a href="https://github.com/systemslibrarian/crypto-lab-x3dh-wire" target="_blank" rel="noreferrer">crypto-lab-x3dh-wire</a>.</p>
+        <p class="crosslink-note">See also <a href="https://systemslibrarian.github.io/crypto-lab-ratchet-wire/" target="_blank" rel="noreferrer">crypto-lab-ratchet-wire</a> and <a href="https://systemslibrarian.github.io/crypto-lab-x3dh-wire/" target="_blank" rel="noreferrer">crypto-lab-x3dh-wire</a>.</p>
       </section>
 
       </main>
