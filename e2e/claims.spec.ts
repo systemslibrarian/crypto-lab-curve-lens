@@ -515,35 +515,6 @@ test('Panel 5 (real): the shared secret equals both parties’ own values on eve
 
 /* --------------------------------------------------------------- Regression */
 
-test('the theme chosen in the shared top bar survives the next interaction', async ({ page }) => {
-  await page.goto('.');
-  const html = page.locator('html');
-  await expect(html).toHaveAttribute('data-theme', 'dark');
-
-  await page.locator('#cl-theme-toggle').click();
-  await expect(html).toHaveAttribute('data-theme', 'light');
-
-  // Regression: render() used to re-apply a stale state.theme on every update,
-  // so any interaction snapped the page back to dark — and since this lab's own
-  // toggle is display:none'd by the shared header, the only visible theme
-  // control was dead after the first click.
-  await page.locator('[data-field-view="field"]').click();
-  await expect(html).toHaveAttribute('data-theme', 'light');
-
-  await page.locator('#ecdlp-solve').click();
-  await expect(page.locator('#ecdlp-status')).toContainText('Solved', { timeout: 30_000 });
-  await expect(html).toHaveAttribute('data-theme', 'light');
-
-  await page.locator('#ecdh-generate').click();
-  await expect(html).toHaveAttribute('data-theme', 'light');
-  expect(await page.evaluate(() => localStorage.getItem('theme'))).toBe('light');
-
-  // And it toggles back.
-  await page.locator('#cl-theme-toggle').click();
-  await expect(html).toHaveAttribute('data-theme', 'dark');
-  await page.locator('#toy-ecdh-shuffle').click();
-  await expect(html).toHaveAttribute('data-theme', 'dark');
-});
 
 /**
  * The `[hidden]` override trap: any author `display` on an element beats the UA

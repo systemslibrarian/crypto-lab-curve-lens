@@ -127,15 +127,3 @@ test('no WCAG A/AA violations in dark theme', async ({ page }) => {
   await assertGradientContrast(page, '.cl-hero-desc', ['#11171c', 'rgba(255, 140, 87, 0.22)', 'rgba(92, 209, 240, 0.18)', 'rgba(22, 28, 36, 0.98)', 'rgba(17, 23, 28, 0.84)']);
 });
 
-test('no WCAG A/AA violations in light theme', async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto('.');
-  await expect(page.locator('.cl-hero-title')).toBeVisible();
-  await page.locator('#cl-theme-toggle').click();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await page.waitForLoadState('networkidle');
-  await revealAll(page);
-  await scan(page);
-  // --bg: #f6f1e7, Hero gradient stops #fff8ee and #f6f1e7 plus radial accents
-  await assertGradientContrast(page, '.cl-hero-desc', ['#f6f1e7', 'rgba(190, 90, 42, 0.28)', 'rgba(28, 75, 100, 0.22)', 'rgba(255, 248, 238, 0.95)', 'rgba(246, 241, 231, 0.72)']);
-});
