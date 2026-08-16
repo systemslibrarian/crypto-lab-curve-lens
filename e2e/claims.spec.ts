@@ -515,7 +515,6 @@ test('Panel 5 (real): the shared secret equals both parties’ own values on eve
 
 /* --------------------------------------------------------------- Regression */
 
-
 /**
  * The `[hidden]` override trap: any author `display` on an element beats the UA
  * `[hidden] { display: none }` rule, so a panel shipping the attribute renders
