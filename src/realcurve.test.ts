@@ -123,8 +123,9 @@ describe('ECDH agreement', () => {
     expect(big.scalarBits).toBe(64);
     expect(big.ladderIterations).toBe(p256Default.ladderIterations);
     // X25519's ladder is fixed by construction and does not depend on the scalar at all.
-    expect(multiplyGenerator('curve25519', defaultScalarForCurve('curve25519')).ladderIterations)
-      .toBe(255);
+    expect(
+      multiplyGenerator('curve25519', defaultScalarForCurve('curve25519')).ladderIterations,
+    ).toBe(255);
   });
 
   it('produces fresh key material on each call', () => {
