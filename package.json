@@ -19,7 +19,7 @@
     "@noble/curves": "^1.8.1"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.12.1",
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^9.17.0",
     "@playwright/test": "^1.62.1",
     "eslint": "^9.17.0",
@@ -27,7 +27,7 @@
     "jsdom": "^30.0.1",
     "prettier": "^3.9.6",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.19.0",
+    "typescript-eslint": "^8.67.0",
     "vite": "^7.1.7",
     "vitest": "^4.1.10"
   }
