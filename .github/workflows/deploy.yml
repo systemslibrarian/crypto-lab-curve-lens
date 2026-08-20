@@ -22,7 +22,15 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          # 24, not 20. jsdom 30 pulls undici 8, which calls
+          # worker_threads.markAsUncloneable -- added in Node 22.10 and never
+          # backported to 20. On 20.x the jsdom-environment test file cannot
+          # start its worker at all ("[vitest-pool]: Failed to start forks
+          # worker"), and vitest still reports the other files green, so the
+          # gate half-ran. npm also warned EBADENGINE on jsdom, undici,
+          # whatwg-url and both @asamuzakjp packages, all of which want
+          # >=22.19 / >=24. Node 20 is EOL; 24 is the current LTS.
+          node-version: 24
           cache: npm
 
       - run: npm ci
