@@ -594,7 +594,7 @@ function scalarPanelMarkup(state: AppState): string {
     state.smallScalar,
     SMALL_FIELD_CURVE.generator,
   );
-  let realResultMarkup = '';
+  let realResultMarkup: string;
 
   try {
     const result = multiplyGenerator(state.realCurve, state.realScalar);
@@ -1049,8 +1049,8 @@ function captureFocus(): { id: string; start: number | null; end: number | null 
     return null;
   }
   if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
-    let start: number | null = null;
-    let end: number | null = null;
+    let start: number | null;
+    let end: number | null;
     try {
       // Some input types (e.g. number) throw when reading selection; ignore those.
       start = active.selectionStart;
