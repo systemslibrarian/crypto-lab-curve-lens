@@ -16,7 +16,7 @@
     "format": "prettier --write ."
   },
   "dependencies": {
-    "@noble/curves": "^1.8.1"
+    "@noble/curves": "^2.3.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
