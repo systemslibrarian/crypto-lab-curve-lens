@@ -1,6 +1,6 @@
-import { p256 } from '@noble/curves/p256';
-import { secp256k1 } from '@noble/curves/secp256k1';
-import { x25519 } from '@noble/curves/ed25519';
+import { p256 } from '@noble/curves/nist.js';
+import { secp256k1 } from '@noble/curves/secp256k1.js';
+import { x25519 } from '@noble/curves/ed25519.js';
 
 export type RealCurveId = 'p256' | 'curve25519' | 'secp256k1';
 
@@ -182,7 +182,7 @@ function normalizeScalarForShortWeierstrass(
     ? BigInt(rawScalar.trim())
     : decimalToBigInt(rawScalar);
 
-  if (scalar <= 0n || scalar >= curve.CURVE.n) {
+  if (scalar <= 0n || scalar >= curve.Point.Fn.ORDER) {
     throw new Error(`Scalar must be in [1, n-1] for ${REAL_CURVES[curveId].label}.`);
   }
 
@@ -215,8 +215,8 @@ export function multiplyGenerator(curveId: RealCurveId, rawScalar: string): Scal
 
   const scalar = normalizeScalarForShortWeierstrass(curveId, rawScalar);
   const curve = curveId === 'p256' ? p256 : secp256k1;
-  const point = curve.ProjectivePoint.BASE.multiply(scalar);
-  const bits = curve.CURVE.n.toString(2).length;
+  const point = curve.Point.BASE.multiply(scalar);
+  const bits = curve.Point.Fn.ORDER.toString(2).length;
   return {
     curve: curveId,
     scalarHex: `0x${scalar.toString(16)}`,
@@ -267,14 +267,14 @@ export function generateEcdhDemo(curveId: RealCurveId): EcdhTranscript {
   }
 
   const curve = curveId === 'p256' ? p256 : secp256k1;
-  const alicePrivate = randomScalarBytes(curve.CURVE.n);
-  const bobPrivate = randomScalarBytes(curve.CURVE.n);
+  const alicePrivate = randomScalarBytes(curve.Point.Fn.ORDER);
+  const bobPrivate = randomScalarBytes(curve.Point.Fn.ORDER);
   const alicePublic = curve.getPublicKey(alicePrivate, false);
   const bobPublic = curve.getPublicKey(bobPrivate, false);
   const aliceScalar = bytesToBigInt(alicePrivate);
   const bobScalar = bytesToBigInt(bobPrivate);
-  const aliceSharedPoint = curve.ProjectivePoint.fromHex(bobPublic).multiply(aliceScalar);
-  const bobSharedPoint = curve.ProjectivePoint.fromHex(alicePublic).multiply(bobScalar);
+  const aliceSharedPoint = curve.Point.fromBytes(bobPublic).multiply(aliceScalar);
+  const bobSharedPoint = curve.Point.fromBytes(alicePublic).multiply(bobScalar);
 
   return {
     curve: curveId,
@@ -306,16 +306,15 @@ export function defaultScalarForCurve(curveId: RealCurveId): string {
 }
 
 export function runVerificationSuite(): VerificationResult[] {
-  const p256GeneratorMatches =
-    p256.ProjectivePoint.BASE.toHex(false) === P256_GENERATOR_UNCOMPRESSED;
-  const p256OrderMatches = p256.ProjectivePoint.BASE.multiply(p256.CURVE.n - 1n)
-    .add(p256.ProjectivePoint.BASE)
-    .equals(p256.ProjectivePoint.ZERO);
+  const p256GeneratorMatches = p256.Point.BASE.toHex(false) === P256_GENERATOR_UNCOMPRESSED;
+  const p256OrderMatches = p256.Point.BASE.multiply(p256.Point.Fn.ORDER - 1n)
+    .add(p256.Point.BASE)
+    .equals(p256.Point.ZERO);
   const secpGeneratorMatches =
-    secp256k1.ProjectivePoint.BASE.toHex(false) === SECP256K1_GENERATOR_UNCOMPRESSED;
-  const secpOrderMatches = secp256k1.ProjectivePoint.BASE.multiply(secp256k1.CURVE.n - 1n)
-    .add(secp256k1.ProjectivePoint.BASE)
-    .equals(secp256k1.ProjectivePoint.ZERO);
+    secp256k1.Point.BASE.toHex(false) === SECP256K1_GENERATOR_UNCOMPRESSED;
+  const secpOrderMatches = secp256k1.Point.BASE.multiply(secp256k1.Point.Fn.ORDER - 1n)
+    .add(secp256k1.Point.BASE)
+    .equals(secp256k1.Point.ZERO);
 
   const alicePrivate = hexToBytes(RFC7748_ALICE_PRIVATE);
   const bobPrivate = hexToBytes(RFC7748_BOB_PRIVATE);
