@@ -64,6 +64,21 @@ export const COMPARISON_ANALOGS: Record<string, SmallCurveConfig> = {
     generator: null,
     subtitle: 'Small-field analog of koblitz-style y^2 = x^3 + 7',
   },
+  /**
+   * The shape difference that matters here is in `a`. The P-256 analog above uses a = 14,
+   * which is -3 mod 17 — P-256 fixes a = -3 and seeds only b. Brainpool seeds BOTH
+   * coefficients from e, so its analog takes an `a` that is not -3 mod p (which would be 20
+   * here) and a `b` that is likewise unremarkable. Same equation family, different provenance.
+   */
+  brainpoolP256r1: {
+    name: 'brainpoolP256r1 Analog',
+    kind: 'weierstrass',
+    p: 23,
+    a: 13,
+    b: 11,
+    generator: null,
+    subtitle: 'Small-field analog with both coefficients seeded, not fixed',
+  },
 };
 
 export function mod(value: number, prime: number): number {

@@ -17,7 +17,8 @@ import {
   type Point,
 } from './curve';
 import {
-  REAL_CURVES,
+  AVAILABLE_CURVE_IDS,
+  availableCurves,
   defaultScalarForCurve,
   generateEcdhDemo,
   multiplyGenerator,
@@ -28,6 +29,7 @@ import {
 } from './realcurve';
 import { renderCurvePlot, renderRealPlane } from './visualizer';
 import { REAL_PLANE_CURVE, upperY } from './realplane';
+import { NIST_P256_SEED, curveSeedProvenance, primeSeedProvenance } from './sleeve';
 
 type ScalarMode = 'small' | 'real';
 type FieldView = 'reals' | 'field';
@@ -72,6 +74,12 @@ const explorerGroupOrder = groupOrder(SMALL_FIELD_CURVE);
 const explorerGenerator = SMALL_FIELD_CURVE.generator as FinitePoint;
 const explorerGeneratorOrder = pointOrder(SMALL_FIELD_CURVE, explorerGenerator);
 const verificationSuite = runVerificationSuite();
+/**
+ * pi and e do not change, so derive the seeds once at module load rather than on every
+ * render — render() runs on every click, and this walks a few hundred 1200-bit divisions.
+ */
+const primeSeed = primeSeedProvenance();
+const curveSeed = curveSeedProvenance();
 
 /** A timer handle for the animated discrete-log walk, so it can be cancelled. */
 let ecdlpTimer: ReturnType<typeof setInterval> | null = null;
@@ -186,7 +194,12 @@ function syncThemeFromDocument(state: AppState): void {
   applyTheme(state.theme);
 }
 
-const REAL_CURVE_IDS: RealCurveId[] = ['p256', 'curve25519', 'secp256k1'];
+/**
+ * The registry decides which curves exist; this module must not keep a second list that can
+ * drift from it. A curve withheld for failing its published vector is absent from both the
+ * selectors and the URL whitelist for free.
+ */
+const REAL_CURVE_IDS: RealCurveId[] = AVAILABLE_CURVE_IDS;
 
 function parsePointParam(value: string | null): FinitePoint[] {
   if (!value) {
@@ -280,6 +293,7 @@ function primitiveChips(): string {
     <span class="primitive-chip">P-256</span>
     <span class="primitive-chip">Curve25519</span>
     <span class="primitive-chip">secp256k1</span>
+    <span class="primitive-chip">brainpoolP256r1</span>
     <span class="primitive-chip">ECDH</span>
   `;
 }
@@ -301,11 +315,11 @@ function glossaryMarkup(): string {
     ],
     [
       'Cofactor (h)',
-      'The full curve has h × n points; the cofactor h is the leftover factor outside the prime-order subgroup you actually use. h = 1 for P-256 and secp256k1; h = 8 for Curve25519, which is why X25519 clamps scalars to dodge small-subgroup attacks.',
+      'The full curve has h × n points; the cofactor h is the leftover factor outside the prime-order subgroup you actually use. h = 1 for P-256, secp256k1 and brainpoolP256r1; h = 8 for Curve25519, which is why X25519 clamps scalars to dodge small-subgroup attacks.',
     ],
     [
       'Weierstrass vs Montgomery',
-      'Two equation shapes for the same idea. Short Weierstrass (y² = x³ + ax + b) is the classic form used by P-256 and secp256k1. Montgomery (By² = x³ + Ax² + x) is an alternate shape — Curve25519 uses it because it enables a very fast, constant-time "ladder".',
+      'Two equation shapes for the same idea. Short Weierstrass (y² = x³ + ax + b) is the classic form used by P-256, secp256k1 and brainpoolP256r1. Montgomery (By² = x³ + Ax² + x) is an alternate shape — Curve25519 uses it because it enables a very fast, constant-time "ladder".',
     ],
     [
       'u-coordinate',
@@ -313,7 +327,7 @@ function glossaryMarkup(): string {
     ],
     [
       'SafeCurves rating',
-      'An independent checklist (safecurves.cr.yp.to) of properties that make a curve hard to implement incorrectly. Curve25519 passes; P-256 and secp256k1 do not meet every criterion, though they remain widely deployed.',
+      'An independent checklist (safecurves.cr.yp.to) of properties that make a curve hard to implement incorrectly. Curve25519 passes; P-256, secp256k1 and brainpoolP256r1 do not meet every criterion, though they remain widely deployed.',
     ],
   ];
   return `
@@ -326,8 +340,102 @@ function glossaryMarkup(): string {
   `;
 }
 
+/**
+ * The reason brainpoolP256r1 is in this lab at all.
+ *
+ * Three of the four curves here were generated pseudo-randomly from a 160-bit seed, and for
+ * all of them the curve verifiably falls out of the seed. The question this note asks is the
+ * one level up that the verification does not answer: who chose the seed, and can you check
+ * THAT? The rows below recompute brainpool's two seeds from pi and e in the browser, so the
+ * answer is on screen as arithmetic rather than as a paragraph asking to be believed.
+ *
+ * Honesty constraint: this is evidence about how curves were chosen. It is not evidence that
+ * P-256 is backdoored, and the copy must not imply that it is.
+ */
+function seedRow(
+  label: string,
+  source: string,
+  derived: string,
+  published: string,
+  matches: boolean,
+): string {
+  return `
+    <div class="seed-row">
+      <dt>${label}</dt>
+      <dd>
+        <p class="muted">Recomputed here from ${source}:</p>
+        <p class="code-block">${derived}</p>
+        <p class="muted">Published in RFC 5639 Appendix A:</p>
+        <p class="code-block">${published}</p>
+        <p class="seed-verdict ${matches ? 'is-pass' : 'is-fail'}">
+          ${matches ? '✓ Match — the seed is the constant, not a choice' : '✗ Mismatch — derivation failed'}
+        </p>
+      </dd>
+    </div>
+  `;
+}
+
+function provenanceMarkup(): string {
+  return `
+    <details class="glossary provenance-note" id="curve-provenance">
+      <summary>Where did this curve come from? Open the seed provenance</summary>
+      <p class="muted">
+        A curve's coefficients have to come from somewhere. P-256 and brainpoolP256r1 were both
+        generated from a published 160-bit <strong>seed</strong>, and for both of them anyone can
+        re-run the generation rule and confirm the curve really does fall out of that seed. That
+        much is equally checkable either way.
+      </p>
+      <p class="muted">
+        The difference is one level up: <strong>where the seed itself came from</strong>. If you
+        could quietly search through seeds until one produced a curve with a weakness only you
+        knew about, publishing the seed afterwards would prove nothing. So the question is whether
+        the seed was something anyone could have chosen freely.
+      </p>
+      <dl class="glossary-list seed-list">
+        ${seedRow(
+          'brainpoolP256r1 — seed for the prime p',
+          'the binary expansion of π (Machin’s formula, exact integer arithmetic)',
+          primeSeed.derived,
+          primeSeed.published,
+          primeSeed.matches,
+        )}
+        ${seedRow(
+          'brainpoolP256r1 — seed for the coefficients A, B and G',
+          'the binary expansion of e (the exponential series, exact integer arithmetic)',
+          curveSeed.derived,
+          curveSeed.published,
+          curveSeed.matches,
+        )}
+        <div class="seed-row">
+          <dt>NIST P-256 — seed</dt>
+          <dd>
+            <p class="muted">Published in FIPS 186-4 D.1.2.3 and SEC 2 v2.0 §2.4.2:</p>
+            <p class="code-block">${NIST_P256_SEED}</p>
+            <p class="muted">Derived from:</p>
+            <p class="seed-verdict is-unknown">— No derivation of this seed has ever been published</p>
+          </dd>
+        </div>
+      </dl>
+      <p class="muted">
+        Both rows above reproduce RFC 5639's published seeds from nothing but π and e, computed in
+        your browser. Nobody can search for a favourable value of π. P-256's seed is a well-formed
+        160-bit value that the curve genuinely derives from — but it simply appears, with no account
+        of how it was picked. That is the entire "nothing up my sleeve" argument, and it is an
+        argument about <em>provenance</em>, not a demonstration of any weakness in P-256. No attack
+        on P-256 is known.
+      </p>
+      <p class="crosslink-note">
+        The same question asked of a different primitive:
+        <a href="https://systemslibrarian.github.io/crypto-lab-sleeve-check/" target="_blank" rel="noreferrer">crypto-lab-sleeve-check</a>
+        takes GOST's Kuznyechik S-box — published as a bare 256-byte table — and shows it falls out
+        of four small constants and field arithmetic.
+      </p>
+    </details>
+  `;
+}
+
 function comparisonCards(): string {
-  return (Object.values(REAL_CURVES) as Array<(typeof REAL_CURVES)[RealCurveId]>)
+  return availableCurves()
     .map(
       (curve) => `
         <article class="comparison-card" data-mini-curve="${curve.id}">
@@ -388,6 +496,12 @@ function verificationMarkup(): string {
           <div role="status" aria-label="${result.title}: ${result.passed ? 'passed' : 'failed'}">
             <strong>${result.passed ? '✓' : '✗'} ${result.title}</strong>
             <span>${result.detail}</span>
+            ${
+              result.computed
+                ? `<p class="muted point-part-label">${result.computed.label}:</p>
+                   <p class="code-block verification-value" id="${result.computed.id}">${result.computed.value}</p>`
+                : ''
+            }
           </div>
         </li>
       `,
@@ -640,7 +754,7 @@ function scalarPanelMarkup(state: AppState): string {
           <label>
             <span>Curve</span>
             <select id="real-curve-select">
-              ${Object.values(REAL_CURVES)
+              ${availableCurves()
                 .map(
                   (curve) =>
                     `<option value="${curve.id}" ${curve.id === state.realCurve ? 'selected' : ''}>${curve.label}</option>`,
@@ -652,7 +766,7 @@ function scalarPanelMarkup(state: AppState): string {
             <span>Scalar</span>
             <input id="real-scalar-input" value="${state.realScalar}" spellcheck="false" />
           </label>
-          <p class="muted">Use decimal for P-256 and secp256k1, or 32-byte hex for Curve25519/X25519.</p>
+          <p class="muted">Use decimal for P-256, secp256k1 and brainpoolP256r1, or 32-byte hex for Curve25519/X25519.</p>
           ${realResultMarkup}
         </div>
       </div>
@@ -743,7 +857,7 @@ function toyEcdhMarkup(state: AppState): string {
  * a KDF". Both cited specs say otherwise: SP 800-56A §5.7.1.2 and RFC 5903 §9 define Z as
  * the x-coordinate alone, 32 bytes, with no `04` prefix and no y. X25519's 32-byte output
  * (RFC 7748 §6.1) was already correct, so one selector produced two different meanings for
- * one label. Z is now the coordinate on all three curves and the encoded point is shown as
+ * one label. Z is now the coordinate on all four curves and the encoded point is shown as
  * what it is.
  */
 function sharedSecretProvenance(transcript: EcdhTranscript): string {
@@ -763,7 +877,7 @@ function ecdhPanelMarkup(state: AppState): string {
         <label>
           <span>User-selected curve</span>
           <select id="ecdh-curve-select">
-            ${Object.values(REAL_CURVES)
+            ${availableCurves()
               .map(
                 (curve) =>
                   `<option value="${curve.id}" ${curve.id === state.ecdhCurve ? 'selected' : ''}>${curve.label}</option>`,
@@ -824,7 +938,7 @@ function buildAppMarkup(state: AppState): string {
         <div class="cl-hero-main">
           <h1 class="cl-hero-title">Curve Lens</h1>
           <p class="cl-hero-sub">Elliptic curves · group law · ECDH</p>
-          <p class="cl-hero-desc">Explore the finite-field group law by adding points and running scalar multiplication on a toy curve, then agree on a shared secret with ECDH across real P-256, Curve25519, and secp256k1.</p>
+          <p class="cl-hero-desc">Explore the finite-field group law by adding points and running scalar multiplication on a toy curve, then agree on a shared secret with ECDH across real P-256, Curve25519, secp256k1, and brainpoolP256r1.</p>
           <div class="primitive-row" aria-label="Primitives used">${primitiveChips()}</div>
         </div>
         <aside class="cl-hero-why" aria-label="Why it matters">
@@ -932,9 +1046,10 @@ function buildAppMarkup(state: AppState): string {
             <p class="eyebrow">Panel 4</p>
             <h2 id="panel4-heading">Curve Comparison</h2>
           </div>
-          <p class="panel-note">All three are broken by Shor's algorithm on a sufficiently large fault-tolerant quantum computer. The mini-plots are small-field analogs that preserve equation family, not production-field coordinates.</p>
+          <p class="panel-note">All four are broken by Shor's algorithm on a sufficiently large fault-tolerant quantum computer. The mini-plots are small-field analogs that preserve equation family, not production-field coordinates.</p>
         </div>
         ${glossaryMarkup()}
+        ${provenanceMarkup()}
         <div class="comparison-grid">
           ${comparisonCards()}
         </div>

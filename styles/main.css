@@ -1249,3 +1249,57 @@ select {
 [data-theme='dark'] .primary-button {
   color: #11171c;
 } /* white on gradient #ff8c57→#ffd3bf was 2.30:1; dark ink gives 7.86:1+ */
+
+/* ───── Seed provenance note (Panel 4) ───── */
+/* Reuses .glossary for the disclosure chrome; only the seed rows are new. */
+.provenance-note > p {
+  color: var(--muted);
+  line-height: 1.55;
+  max-width: 78ch;
+  margin: 0 0 0.7rem;
+}
+
+.seed-list {
+  gap: 1.1rem;
+}
+
+.seed-row dd {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.seed-row .code-block {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+/* State is carried by the leading glyph and the wording as well as the colour,
+   so it survives greyscale and colour-blind viewing (WCAG 1.4.1). */
+.seed-verdict {
+  margin-top: 0.3rem;
+  font-weight: 700;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.seed-verdict.is-pass {
+  color: var(--success);
+}
+
+.seed-verdict.is-fail {
+  color: var(--danger);
+}
+
+.seed-verdict.is-unknown {
+  color: var(--muted);
+}
+
+.provenance-note .crosslink-note {
+  margin-top: 0.4rem;
+}
+
+/* The value a verification check recomputed, printed under its detail line. */
+.verification-value {
+  font-size: 0.8rem;
+  color: var(--text);
+}

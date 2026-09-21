@@ -10,7 +10,7 @@ import {
   type RealCurveId,
 } from './realcurve';
 
-const CURVES: RealCurveId[] = ['p256', 'curve25519', 'secp256k1'];
+const CURVES: RealCurveId[] = ['p256', 'curve25519', 'secp256k1', 'brainpoolP256r1'];
 
 describe('hex helpers', () => {
   it('round-trips bytes through hex', () => {
@@ -43,6 +43,28 @@ describe('multiplyGenerator', () => {
       '04' +
         '6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296' +
         '4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5',
+    );
+  });
+
+  /**
+   * The registry-level check that the id 'brainpoolP256r1' really reaches brainpoolP256r1.
+   * brainpool.test.ts proves the curve object is right; this proves the lookup that the UI
+   * goes through resolves to it, which is the step the old two-way ternary would have got
+   * wrong by silently falling through to secp256k1.
+   */
+  it('routes the brainpoolP256r1 id to the RFC 5639 base point', () => {
+    const result = multiplyGenerator('brainpoolP256r1', '1');
+    expect(result.resultHex).toBe(
+      '04' +
+        '8bd2aeb9cb7e57cb2c4b482ffc81b7afb9de27e1e3bd23c23a4453bd9ace3262' +
+        '547ef835c3dac4fd97f8461a14611dc9c27745132ded8e545c1d54c72f046997',
+    );
+    // Not secp256k1's or P-256's base point — the failure mode this guards against.
+    expect(result.resultHex.slice(2, 66)).not.toBe(
+      '79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
+    );
+    expect(result.resultHex.slice(2, 66)).not.toBe(
+      '6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296',
     );
   });
 
@@ -122,6 +144,12 @@ describe('ECDH agreement', () => {
     const big = multiplyGenerator('p256', '12345678901234567890');
     expect(big.scalarBits).toBe(64);
     expect(big.ladderIterations).toBe(p256Default.ladderIterations);
+    const brainpool = multiplyGenerator(
+      'brainpoolP256r1',
+      defaultScalarForCurve('brainpoolP256r1'),
+    );
+    expect(brainpool.scalarBits).toBe(3);
+    expect(brainpool.ladderIterations).toBe(256);
     // X25519's ladder is fixed by construction and does not depend on the scalar at all.
     expect(
       multiplyGenerator('curve25519', defaultScalarForCurve('curve25519')).ladderIterations,

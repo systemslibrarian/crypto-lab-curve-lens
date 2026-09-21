@@ -1,8 +1,18 @@
 import { p256 } from '@noble/curves/nist.js';
 import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { x25519 } from '@noble/curves/ed25519.js';
+import type { ECDH } from '@noble/curves/abstract/weierstrass.js';
+import {
+  BRAINPOOL_GENERATOR,
+  BRAINPOOL_PARAMS,
+  BRAINPOOL_RFC7027_CHECK,
+  brainpoolP256r1,
+} from './brainpool';
 
-export type RealCurveId = 'p256' | 'curve25519' | 'secp256k1';
+export type RealCurveId = 'p256' | 'curve25519' | 'secp256k1' | 'brainpoolP256r1';
+
+/** The short-Weierstrass curves, keyed so adding one is a registry entry and nothing else. */
+type ShortWeierstrassId = Exclude<RealCurveId, 'curve25519'>;
 
 export interface RealCurveMeta {
   id: RealCurveId;
@@ -48,7 +58,7 @@ export interface EcdhTranscript {
   aliceSharedPoint: string;
   bobSharedPoint: string;
   /**
-   * The ECDH shared secret Z, which is the x/u COORDINATE ONLY — 32 bytes on all three
+   * The ECDH shared secret Z, which is the x/u COORDINATE ONLY — 32 bytes on all four
    * curves. NIST SP 800-56A §5.7.1.2 and RFC 5903 §9 both define Z as the x-coordinate of
    * the shared point, not the encoded point; RFC 7748 §6.1 defines the X25519 output as the
    * u-coordinate. This is the value a KDF is fed. The panel used to print the 65-byte
@@ -63,6 +73,12 @@ export interface VerificationResult {
   passed: boolean;
   title: string;
   detail: string;
+  /**
+   * The value this check actually recomputed, when there is one worth showing. A check that
+   * only renders a green tick asks to be believed; one that prints the point it derived can
+   * be compared against the published document by anyone reading the page.
+   */
+  computed?: { label: string; value: string; id: string };
 }
 
 const P256_GENERATOR_UNCOMPRESSED =
@@ -128,7 +144,55 @@ export const REAL_CURVES: Record<RealCurveId, RealCurveMeta> = {
     shorStatus: 'Broken by Shor on a fault-tolerant quantum computer',
     standards: 'SEC 2 v2.0',
   },
+  brainpoolP256r1: {
+    id: 'brainpoolP256r1',
+    label: 'brainpoolP256r1',
+    equation: 'y^2 = x^3 + Ax + B mod p (A and B both seeded from e)',
+    prime: `0x${BRAINPOOL_PARAMS.p}`,
+    subgroupOrder: `0x${BRAINPOOL_PARAMS.n}`,
+    cofactor: BRAINPOOL_PARAMS.cofactor,
+    generator: `Gx = 0x${BRAINPOOL_GENERATOR.x}, Gy = 0x${BRAINPOOL_GENERATOR.y}`,
+    safeCurves:
+      'SafeCurves: does not satisfy all SafeCurves criteria. Source: safecurves.cr.yp.to.',
+    useCases:
+      'German BSI-aligned government and eID systems, some European smartcards and TLS deployments',
+    recommendedStatus: 'Acceptable where a verifiably-seeded curve is required',
+    shorStatus: 'Broken by Shor on a fault-tolerant quantum computer',
+    standards: 'RFC 5639, RFC 7027',
+  },
 };
+
+/**
+ * The curves the page may offer. brainpoolP256r1 is present only if it reproduced its
+ * RFC 7027 vector at load — see src/brainpool.ts. Panels iterate THIS, not the metadata
+ * table, so a curve that failed its vector cannot appear in a selector or a comparison card.
+ */
+export const AVAILABLE_CURVE_IDS: RealCurveId[] = (
+  ['p256', 'curve25519', 'secp256k1', 'brainpoolP256r1'] as RealCurveId[]
+).filter((id) => id !== 'brainpoolP256r1' || brainpoolP256r1 !== null);
+
+/** The metadata for the available curves, in display order. */
+export function availableCurves(): RealCurveMeta[] {
+  return AVAILABLE_CURVE_IDS.map((id) => REAL_CURVES[id]);
+}
+
+/**
+ * The short-Weierstrass curves by id. The two-way `curveId === 'p256' ? p256 : secp256k1`
+ * ternary this replaces silently treated every non-P-256 id as secp256k1, so a third entry
+ * would have run on the wrong curve while looking entirely healthy.
+ */
+function shortWeierstrassCurve(curveId: ShortWeierstrassId): ECDH {
+  const curve: ECDH | null =
+    curveId === 'p256' ? p256 : curveId === 'secp256k1' ? secp256k1 : brainpoolP256r1;
+
+  if (curve === null) {
+    throw new Error(
+      `${REAL_CURVES[curveId].label} failed its published test vector and is unavailable.`,
+    );
+  }
+
+  return curve;
+}
 
 function stripHexPrefix(value: string): string {
   return value.startsWith('0x') || value.startsWith('0X') ? value.slice(2) : value;
@@ -174,10 +238,10 @@ function decimalToBigInt(value: string): bigint {
 }
 
 function normalizeScalarForShortWeierstrass(
-  curveId: 'p256' | 'secp256k1',
+  curveId: ShortWeierstrassId,
   rawScalar: string,
 ): bigint {
-  const curve = curveId === 'p256' ? p256 : secp256k1;
+  const curve = shortWeierstrassCurve(curveId);
   const scalar = /^0x/i.test(rawScalar.trim())
     ? BigInt(rawScalar.trim())
     : decimalToBigInt(rawScalar);
@@ -214,7 +278,7 @@ export function multiplyGenerator(curveId: RealCurveId, rawScalar: string): Scal
   }
 
   const scalar = normalizeScalarForShortWeierstrass(curveId, rawScalar);
-  const curve = curveId === 'p256' ? p256 : secp256k1;
+  const curve = shortWeierstrassCurve(curveId);
   const point = curve.Point.BASE.multiply(scalar);
   const bits = curve.Point.Fn.ORDER.toString(2).length;
   return {
@@ -266,7 +330,7 @@ export function generateEcdhDemo(curveId: RealCurveId): EcdhTranscript {
     };
   }
 
-  const curve = curveId === 'p256' ? p256 : secp256k1;
+  const curve = shortWeierstrassCurve(curveId);
   const alicePrivate = randomScalarBytes(curve.Point.Fn.ORDER);
   const bobPrivate = randomScalarBytes(curve.Point.Fn.ORDER);
   const alicePublic = curve.getPublicKey(alicePrivate, false);
@@ -302,7 +366,11 @@ export function defaultScalarForCurve(curveId: RealCurveId): string {
     return RFC7748_ALICE_PRIVATE;
   }
 
-  return curveId === 'p256' ? '2' : '7';
+  if (curveId === 'secp256k1') {
+    return '7';
+  }
+
+  return curveId === 'brainpoolP256r1' ? '5' : '2';
 }
 
 export function runVerificationSuite(): VerificationResult[] {
@@ -327,6 +395,8 @@ export function runVerificationSuite(): VerificationResult[] {
     bytesToHex(x25519.getSharedSecret(bobPrivate, hexToBytes(RFC7748_ALICE_PUBLIC))) ===
     RFC7748_SHARED;
 
+  const brainpool = BRAINPOOL_RFC7027_CHECK;
+
   return [
     {
       passed: p256GeneratorMatches && p256OrderMatches,
@@ -342,6 +412,17 @@ export function runVerificationSuite(): VerificationResult[] {
       passed: alicePublicMatches && bobPublicMatches && aliceSharedMatches && bobSharedMatches,
       title: 'Curve25519 RFC 7748 vector check',
       detail: 'Verified Alice and Bob public keys plus the shared secret from RFC 7748.',
+    },
+    {
+      passed: brainpool.passed,
+      title: 'brainpoolP256r1 RFC 7027 vector check',
+      detail:
+        'Rebuilt the curve from the RFC 5639 §3.4 parameters, then ran the RFC 7027 Appendix A.1 exchange in both directions. The shared point below was recomputed in your browser; compare it with x_Z as the RFC prints it.',
+      computed: {
+        label: 'Recomputed shared point x_Z',
+        value: brainpool.computedX,
+        id: 'brainpool-rfc7027-xz',
+      },
     },
   ];
 }

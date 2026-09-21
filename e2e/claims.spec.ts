@@ -195,7 +195,7 @@ test('Panel 2: the runtime verification suite passes and its glyph matches its a
 
   const items = page.locator('.verification-item');
   const count = await items.count();
-  expect(count).toBeGreaterThanOrEqual(3);
+  expect(count).toBeGreaterThanOrEqual(4);
 
   // No item may fail, and the ✓/✗ a sighted user reads must agree with the
   // "passed"/"failed" a screen-reader user is told and with the pass/fail class.
@@ -212,11 +212,12 @@ test('Panel 2: the runtime verification suite passes and its glyph matches its a
     );
     expect(glyph, `glyph disagrees with the pass class: ${glyph}`).toBe('✓');
   }
-  // All three README-promised checks are present by name.
+  // All four README-promised checks are present by name.
   const all = (await items.allInnerTexts()).join('\n');
   expect(all).toContain('P-256 generator and order check');
   expect(all).toContain('secp256k1 generator and order check');
   expect(all).toContain('Curve25519 RFC 7748 vector check');
+  expect(all).toContain('brainpoolP256r1 RFC 7027 vector check');
 });
 
 test('Panel 2: the double-and-add trace chains and its final accumulator is the headline k·G', async ({
@@ -420,12 +421,12 @@ test('Panel 5 (toy): a·B, b·A and the shared-dot verdict are one and the same 
  *
  * This test used to assert `expectedLength = { p256: 130, secp256k1: 130, curve25519: 64 }`,
  * under a comment reading "exactly what the panel says it is showing" — it pinned the
- * 65-byte uncompressed point `04||x||y` as the shared secret on two of the three curves.
+ * 65-byte uncompressed point `04||x||y` as the shared secret on the short-Weierstrass curves.
  * SP 800-56A §5.7.1.2 and RFC 5903 §9 define Z as the x-coordinate alone; RFC 7748 §6.1
  * defines X25519's output as the u-coordinate. One label meant two different things
  * depending on the selector, and the page told the reader to feed the wrong one to HKDF.
  *
- * Z is now 32 bytes on all three curves, and what is asserted is the RELATIONSHIP: Z is the
+ * Z is now 32 bytes on all four curves, and what is asserted is the RELATIONSHIP: Z is the
  * x-half of the shared point the page also shows, on every curve that has a y to drop.
  */
 test('Panel 5 (real): the shared secret equals both parties’ own values on every curve', async ({
@@ -435,7 +436,7 @@ test('Panel 5 (real): the shared secret equals both parties’ own values on eve
 
   let curvesWithADroppedCoordinate = 0;
 
-  for (const curve of ['p256', 'curve25519', 'secp256k1']) {
+  for (const curve of ['p256', 'curve25519', 'secp256k1', 'brainpoolP256r1']) {
     await page.locator('#ecdh-curve-select').selectOption(curve);
 
     const sharedCard = page.locator('#ecdh-shared-card');
@@ -504,7 +505,7 @@ test('Panel 5 (real): the shared secret equals both parties’ own values on eve
   expect(
     curvesWithADroppedCoordinate,
     'no short-Weierstrass curve was checked, so the x-coordinate claim was never tested',
-  ).toBe(2);
+  ).toBe(3);
 
   // The private scalars are on screen on purpose; the page has to say so.
   await expect(page.locator('#ecdh-teaching-note')).toContainText('Teaching view');
@@ -692,6 +693,99 @@ test('Panel 3: the security-scale note is consistent with itself AND with arithm
   );
 });
 
+/**
+ * brainpoolP256r1's parameters are typed into this repo by hand, so the only thing standing
+ * between a transposed hex digit and a curve that looks entirely healthy is this vector.
+ *
+ * Unlike the rest of this suite, the expected value here IS hardcoded — deliberately. Every
+ * other assertion compares the page against itself, which is the right shape for an internal
+ * consistency claim. A known-answer test is the opposite claim: that the page agrees with a
+ * document it did not write. Pinning the RFC's own digits is the whole point, and a test that
+ * read the expectation off the page could not fail.
+ *
+ * Source, verbatim: RFC 7027, Appendix A.1 ("256-Bit Curve"), Curve brainpoolP256r1, x_Z.
+ * https://www.rfc-editor.org/rfc/rfc7027.txt
+ */
+const RFC7027_A1_X_Z = '89afc39d41d3b327814b80940b042590f96556ec91e6ae7939bce31f3a18bf2b';
+
+test('Panel 2: the brainpoolP256r1 shared point recomputed on screen is the RFC 7027 vector', async ({
+  page,
+}) => {
+  await page.goto('.');
+
+  const item = page.locator('.verification-item', { hasText: 'brainpoolP256r1 RFC 7027' });
+  await expect(item).toHaveCount(1);
+
+  // The value the page derived in the browser, not a caption quoting the RFC.
+  const recomputed = (await item.locator('#brainpool-rfc7027-xz').innerText()).trim();
+  expect(recomputed, 'the recomputed shared point must equal RFC 7027 Appendix A.1 x_Z').toBe(
+    RFC7027_A1_X_Z,
+  );
+
+  // The check must report itself as passing, by class, glyph and announcement alike.
+  await expect(item).toHaveClass(/is-pass/);
+  await expect(item).not.toHaveClass(/is-fail/);
+  expect((await item.innerText()).trim().charAt(0)).toBe('✓');
+  await expect(item.locator('[role="status"]')).toHaveAttribute('aria-label', /: passed$/);
+
+  // Non-vacuity: this must be the brainpool curve's own answer, not a value that happens to
+  // sit on the page for another reason. The selectable curve has to exist and agree.
+  await expect(page.locator('#ecdh-curve-select option[value="brainpoolP256r1"]')).toHaveCount(1);
+});
+
+/**
+ * The teaching hook: brainpool's seeds are recomputed from π and e in the browser and shown
+ * to equal the values RFC 5639 publishes. If that derivation ever silently stopped running,
+ * the note would quietly become an assertion — which is the thing it exists not to be.
+ */
+test('Panel 4: the seed provenance note derives brainpool’s seeds and contrasts them with P-256', async ({
+  page,
+}) => {
+  await page.goto('.');
+
+  const note = page.locator('#curve-provenance');
+  await note.locator('summary').click();
+  await expect(note).toHaveAttribute('open', '');
+
+  // Both brainpool seeds must be shown as recomputed AND as matching the RFC.
+  const verdicts = await note.locator('.seed-verdict').allInnerTexts();
+  const matches = verdicts.filter((v) => v.includes('✓ Match'));
+  expect(matches.length, `seed rows did not verify: ${verdicts.join(' | ')}`).toBe(2);
+  expect(verdicts.join(' '), 'a seed derivation failed').not.toContain('✗');
+
+  // Each brainpool row prints the derived value and the published value, and they agree —
+  // read off the page, because the claim is that the page computed it, not that it quotes it.
+  const rows = note.locator('.seed-row');
+  await expect(rows).toHaveCount(3);
+  for (const index of [0, 1]) {
+    const values = await rows.nth(index).locator('.code-block').allInnerTexts();
+    expect(values.length, 'a seed row must show derived and published side by side').toBe(2);
+    expect(values[0].trim(), 'derived seed is 160 bits of hex').toMatch(/^[0-9A-F]{40}$/);
+    expect(values[0].trim(), 'the derived seed must equal the published one').toBe(
+      values[1].trim(),
+    );
+  }
+  // The two brainpool seeds come from different constants, so they must not be equal.
+  const first = (await rows.nth(0).locator('.code-block').first().innerText()).trim();
+  const second = (await rows.nth(1).locator('.code-block').first().innerText()).trim();
+  expect(first, 'π and e produced the same seed').not.toBe(second);
+
+  // The contrast is stated honestly: P-256's seed is published, its derivation is not, and
+  // the note stops short of claiming a weakness.
+  const text = (await note.innerText()).replace(/\s+/g, ' ');
+  expect(text).toContain('No derivation of this seed has ever been published');
+  expect(text).toContain('No attack on P-256 is known');
+  expect(text.toLowerCase(), 'the note must not assert a backdoor').not.toContain('backdoor');
+
+  // The sibling exhibit is linked, and to the live lab rather than its repository.
+  const sleeve = note.locator('a[href*="sleeve-check"]');
+  await expect(sleeve).toHaveCount(1);
+  await expect(sleeve).toHaveAttribute(
+    'href',
+    'https://systemslibrarian.github.io/crypto-lab-sleeve-check/',
+  );
+});
+
 /* ------------------------------------------------------------------ Panel 4 */
 
 test('Panel 4: every comparison card is complete and agrees with the glossary', async ({
@@ -713,7 +807,7 @@ test('Panel 4: every comparison card is complete and agrees with the glossary', 
     .evaluateAll((nodes) => nodes.map((n) => (n as HTMLOptionElement).value));
   expect([...ids].sort()).toEqual([...scalarCurves].sort());
   expect([...ids].sort()).toEqual([...ecdhCurves].sort());
-  expect(ids).toHaveLength(3);
+  expect(ids).toHaveLength(4);
 
   const cofactors: Record<string, string> = {};
   for (const id of ids) {
@@ -767,9 +861,12 @@ test('Panel 4: every comparison card is complete and agrees with the glossary', 
   await disclosure.locator('summary').click();
   await expect(disclosure).toHaveAttribute('open', '');
   const glossary = (await disclosure.innerText()).replace(/\s+/g, ' ');
-  expect(glossary).toContain('h = 1 for P-256 and secp256k1; h = 8 for Curve25519');
+  expect(glossary).toContain(
+    'h = 1 for P-256, secp256k1 and brainpoolP256r1; h = 8 for Curve25519',
+  );
   expect(cofactors.p256).toBe('1');
   expect(cofactors.secp256k1).toBe('1');
+  expect(cofactors.brainpoolP256r1).toBe('1');
   expect(cofactors.curve25519).toBe('8');
 });
 
