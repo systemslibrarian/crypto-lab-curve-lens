@@ -36,6 +36,32 @@
 #
 # See the dependabot-auto-merge job in ci.yml -- NOT in deploy.yml, which is
 # where this note used to send people.
+#
+# The `cooldown` blocks below DECLARE a hold that was already happening. Dependabot's
+# updater passes `--min-release-age=3` to npm on its own, with nothing in this repo asking
+# it to: no .npmrc, no package.json `config` key, no `cooldown` field in the job
+# definition, and no org layer to inherit from (this is a personal account). The only place
+# it was visible was a job log line reading "Filtered out 1 versions due to cooldown".
+#
+# That is how eslint 10.11.0 sat unbumped while jsdom, prettier and vitest all landed in
+# one grouped PR on 2026-09-21: eslint was 2.66 days old, the other three were 3.60 to 6.14
+# days old. The hold was correct and invisible, which is the worst combination -- it reads
+# as Dependabot having missed something, and invites someone to bump it by hand and walk
+# straight through the quarantine window the hold exists to enforce.
+#
+# Cooldown applies to VERSION updates only, not security updates, so this does not delay a
+# CVE fix.
+#
+# 3 days is a transcription of the observed default for npm, not a new policy. Deliberately
+# FLAT: no semver-major-days/-minor-days/-patch-days. The majors rationale above turns on
+# the gate deciding rather than the version number, and a semver-tiered cooldown would put
+# bump-type sensitivity back into the pipeline. It would not falsify the claim above -- that
+# claim is about the merge CONDITION, and a cooldown acts earlier, before a PR exists -- but
+# it would leave two adjacent rules disagreeing about whether a version number gets a vote.
+#
+# The github-actions value is a CHOICE, not a transcription: --min-release-age is an npm
+# flag, so the traced evidence covers npm only. 3 there matches intent, and if that
+# ecosystem's real default differs, this file now states which behaviour was wanted.
 version: 2
 updates:
   - package-ecosystem: 'npm'
@@ -43,6 +69,8 @@ updates:
     schedule:
       interval: 'weekly'
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
     groups:
       npm-minor-and-patch:
         patterns:
@@ -56,6 +84,8 @@ updates:
     schedule:
       interval: 'weekly'
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
     groups:
       github-actions:
         patterns:
