@@ -35,7 +35,7 @@ The explorer grid is fully keyboard-navigable (Tab to focus the grid, arrow keys
 
 ## Real-World Usage
 
-- **TLS 1.3 (RFC 8446).** X25519 and P-256 are the two most widely negotiated key-share groups; the ephemeral ECDH step in the handshake provides forward secrecy for every HTTPS connection.
+- **TLS 1.3 (RFC 9846).** X25519 and P-256 are the two most widely negotiated key-share groups; the ephemeral ECDH step in the handshake provides forward secrecy for every HTTPS connection.
 - **Signal Protocol.** X3DH (Extended Triple Diffie-Hellman) and the Double Ratchet both rely on X25519 ECDH for initial key agreement and continuous ratcheting in Signal, WhatsApp, and other adopters.
 - **WireGuard.** Uses Curve25519 (X25519) as its sole key-exchange mechanism; the simplicity and speed of the curve are central to the protocol's design goals.
 - **FIDO2 / WebAuthn (W3C + CTAP2).** P-256 (ES256) is the mandatory-to-implement credential algorithm for hardware security keys and platform authenticators, used in passkey authentication and hardware 2FA.
