@@ -692,7 +692,7 @@ function toyToRealNote(smallScalar: number): string {
   return `
     <details class="toy-real-note">
       <summary>What changed from the toy curve?</summary>
-      <p class="muted">Nothing about the <em>method</em>. The trace on the right ran double-and-add on ~${smallScalar.toString(2).length} bits of the toy scalar; a real curve runs the identical loop over a ~256-bit subgroup order — and runs the full 256 iterations even for a tiny scalar, because a constant-time loop must not shorten itself around a secret. Same algorithm, same "square-and-multiply" shape, same kind of (x, y) output — only the numbers are astronomically larger, which is exactly what makes reversing k·G back to k infeasible. The toy result you can read; the real one you cannot, but it was computed the same way, live in your browser via @noble/curves.</p>
+      <p class="muted">The toy trace uses double-and-add on ${smallScalar.toString(2).length} scalar bits. X25519 uses a Montgomery ladder; noble short-Weierstrass curves use optimized windowed multiplication. These compute related group operations with different algorithms and output encodings. The public parameter size below is not a measured operation count. Algorithmic regularity does not prove constant-time behavior in JavaScript BigInt, JIT or GC.</p>
     </details>
   `;
 }
@@ -717,7 +717,7 @@ function scalarPanelMarkup(state: AppState): string {
         <p class="result-kicker">Real curve result</p>
         ${realPointBreakdown(state.realCurve, result.resultHex)}
         <p class="muted">Scalar: ${normalizeScalarLabel(state.realCurve, state.realScalar)}</p>
-        <p class="muted" id="real-scalar-steps">Scalar bit length: ${result.scalarBits}. Constant-time ladder iterations: ${result.ladderIterations}. ${result.explanation}</p>
+        <p class="muted" id="real-scalar-steps">Scalar bit length: ${result.scalarBits}. Public parameter size: ${result.parameterBits} bits. Algorithm: ${result.algorithm}. ${result.explanation}</p>
         ${toyToRealNote(state.smallScalar)}
       </div>
     `;
