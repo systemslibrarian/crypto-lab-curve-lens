@@ -131,29 +131,34 @@ describe('ECDH agreement', () => {
     }
   });
 
-  it('quotes a scalar bit length and a ladder length that mean different things', () => {
+  it('reports parameter size rather than an instrumented operation count', () => {
     // The shipped defaults are tiny scalars (2 and 7) and the card sits beside a note about
     // ~256-bit loops, so the two numbers must be reported separately, not conflated as "steps".
     const p256Default = multiplyGenerator('p256', defaultScalarForCurve('p256'));
     expect(p256Default.scalarBits).toBe(2);
-    expect(p256Default.ladderIterations).toBe(256);
+    expect(p256Default.parameterBits).toBe(256);
+    expect(p256Default.algorithm).toContain('short-Weierstrass');
+    expect(p256Default.explanation).toContain('not a measured loop count');
+    expect(
+      multiplyGenerator('curve25519', defaultScalarForCurve('curve25519')).algorithm,
+    ).toContain('Montgomery');
     const secp = multiplyGenerator('secp256k1', defaultScalarForCurve('secp256k1'));
     expect(secp.scalarBits).toBe(3);
-    expect(secp.ladderIterations).toBe(256);
+    expect(secp.parameterBits).toBe(256);
     // A large scalar moves one number and not the other.
     const big = multiplyGenerator('p256', '12345678901234567890');
     expect(big.scalarBits).toBe(64);
-    expect(big.ladderIterations).toBe(p256Default.ladderIterations);
+    expect(big.parameterBits).toBe(p256Default.parameterBits);
     const brainpool = multiplyGenerator(
       'brainpoolP256r1',
       defaultScalarForCurve('brainpoolP256r1'),
     );
     expect(brainpool.scalarBits).toBe(3);
-    expect(brainpool.ladderIterations).toBe(256);
+    expect(brainpool.parameterBits).toBe(256);
     // X25519's ladder is fixed by construction and does not depend on the scalar at all.
-    expect(
-      multiplyGenerator('curve25519', defaultScalarForCurve('curve25519')).ladderIterations,
-    ).toBe(255);
+    expect(multiplyGenerator('curve25519', defaultScalarForCurve('curve25519')).parameterBits).toBe(
+      255,
+    );
   });
 
   it('produces fresh key material on each call', () => {

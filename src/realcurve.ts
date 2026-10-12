@@ -40,8 +40,9 @@ export interface ScalarMultiplyResult {
    * disagreed by two orders of magnitude at first paint.
    */
   scalarBits: number;
-  /** Iterations a constant-time ladder runs regardless of the scalar: the subgroup bit length. */
-  ladderIterations: number;
+  /** Public field/order parameter size; not an instrumented operation count. */
+  parameterBits: number;
+  algorithm: string;
   explanation: string;
 }
 
@@ -271,9 +272,10 @@ export function multiplyGenerator(curveId: RealCurveId, rawScalar: string): Scal
       scalarHex: bytesToHex(scalarBytes),
       resultHex: bytesToHex(publicKey),
       scalarBits: 255,
-      ladderIterations: 255,
+      parameterBits: 255,
+      algorithm: 'X25519 Montgomery ladder',
       explanation:
-        'X25519 always runs a fixed 255-iteration Montgomery ladder over Curve25519, whatever the scalar is — a constant-time loop cannot let its length depend on a secret.',
+        'X25519 specifies a 255-step Montgomery ladder. This is algorithm information, not an instrumented trace; JavaScript BigInt, JIT and GC prevent an end-to-end constant-time guarantee.',
     };
   }
 
@@ -286,8 +288,9 @@ export function multiplyGenerator(curveId: RealCurveId, rawScalar: string): Scal
     scalarHex: `0x${scalar.toString(16)}`,
     resultHex: point.toHex(false),
     scalarBits: scalar.toString(2).length,
-    ladderIterations: bits,
-    explanation: `${REAL_CURVES[curveId].label} scalar multiplication is computed over its exact prime field using @noble/curves. A constant-time implementation walks all ${bits} bits of the subgroup order however small the scalar is, so the loop length never leaks k.`,
+    parameterBits: bits,
+    algorithm: 'noble short-Weierstrass scalar multiplication',
+    explanation: `${REAL_CURVES[curveId].label} scalar multiplication is computed over its exact prime field using @noble/curves. The ${bits}-bit subgroup order is parameter information, not a measured loop count. noble uses optimized windowed multiplication with constant-time intent, not the toy double-and-add trace. JavaScript BigInt, JIT and GC provide no end-to-end timing guarantee.`,
   };
 }
 
