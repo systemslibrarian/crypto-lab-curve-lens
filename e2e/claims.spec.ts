@@ -747,17 +747,17 @@ test('Panel 4: the seed provenance note derives brainpool’s seeds and contrast
   await note.locator('summary').click();
   await expect(note).toHaveAttribute('open', '');
 
-  // Both brainpool seeds must be shown as recomputed AND as matching the RFC.
+  // Both brainpool seeds and the recovered P-256 seed must match their published values.
   const verdicts = await note.locator('.seed-verdict').allInnerTexts();
   const matches = verdicts.filter((v) => v.includes('✓ Match'));
-  expect(matches.length, `seed rows did not verify: ${verdicts.join(' | ')}`).toBe(2);
+  expect(matches.length, `seed rows did not verify: ${verdicts.join(' | ')}`).toBe(3);
   expect(verdicts.join(' '), 'a seed derivation failed').not.toContain('✗');
 
   // Each brainpool row prints the derived value and the published value, and they agree —
   // read off the page, because the claim is that the page computed it, not that it quotes it.
   const rows = note.locator('.seed-row');
   await expect(rows).toHaveCount(3);
-  for (const index of [0, 1]) {
+  for (const index of [0, 1, 2]) {
     const values = await rows.nth(index).locator('.code-block').allInnerTexts();
     expect(values.length, 'a seed row must show derived and published side by side').toBe(2);
     expect(values[0].trim(), 'derived seed is 160 bits of hex').toMatch(/^[0-9A-F]{40}$/);
@@ -770,10 +770,18 @@ test('Panel 4: the seed provenance note derives brainpool’s seeds and contrast
   const second = (await rows.nth(1).locator('.code-block').first().innerText()).trim();
   expect(first, 'π and e produced the same seed').not.toBe(second);
 
-  // The contrast is stated honestly: P-256's seed is published, its derivation is not, and
-  // the note stops short of claiming a weakness.
+  // Read the computed seed off the page and compare with the external FIPS value.
+  await expect(note.getByTestId('p256-derived-seed')).toHaveText(
+    'C49D360886E704936A6678E1139D26B7819F7E90',
+  );
+  // The discovery explains the seed, without resolving every parameter-selection decision.
   const text = (await note.innerText()).replace(/\s+/g, ' ');
-  expect(text).toContain('No derivation of this seed has ever been published');
+  expect(text).toContain('16 October 2026');
+  expect(text).toContain('viable candidates were skipped');
+  expect(text).toContain('base point was selected remain unexplained');
+  await expect(
+    note.locator('a[href="https://www.anthropic.com/research/ecdsa-curve-origins"]'),
+  ).toBeVisible();
   expect(text).toContain('No attack on P-256 is known');
   expect(text.toLowerCase(), 'the note must not assert a backdoor').not.toContain('backdoor');
 

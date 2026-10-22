@@ -9,10 +9,10 @@
  *
  * The difference is one level up. Where did the SEED come from?
  *
- *   - P-256's seed is published (FIPS 186-4 D.1.2.3 / SEC 2 v2.0 §2.4.2) and the curve
- *     verifiably derives from it, but no derivation of the seed itself has ever been
- *     published. It is 160 bits that simply appear, and the reader is asked to accept that
- *     whoever chose them was not searching for a curve with a property only they knew about.
+ *   - P-256's seed is published (FIPS 186-4 D.1.2.3 / SEC 2 v2.0 §2.4.2). Anthropic's
+ *     16 October 2026 disclosure reconstructs it from timestamp-initialized lrand48.
+ *     We reproduce that recipe below; the skipped-candidate criteria and P-256's base-point
+ *     selection remain unexplained. Reproducing the seed is not a proof of all design choices.
  *   - brainpool's seeds are not free choices at all. RFC 5639 Appendix A.1 takes the seven
  *     prime seeds from the binary expansion of pi, and Appendix A.2 takes the seven curve
  *     seeds from the expansion of e. There is nowhere to hide a search in a constant you
@@ -141,6 +141,40 @@ const PUBLISHED_SEED_AB_256 = '757F5958490CFD47D7C19BB42158D9554F7B46BC';
  * the value below is pinned by arithmetic, not by recollection.
  */
 export const NIST_P256_SEED = 'C49D360886E704936A6678E1139D26B7819F7E90';
+
+export const NIST_P256_TIMESTAMP = '1997-08-16T01:52:34Z';
+export const NIST_P256_CANDIDATE = 1842;
+
+/**
+ * Reconstruct the public P-256 seed from Anthropic's 2026-10-16 recipe:
+ * https://www.anthropic.com/research/ecdsa-curve-origins
+ * Each candidate takes 20 high bytes of successive 48-bit LCG states, equivalent
+ * to lrand48() >> 23. This historical generator must NOT generate private keys.
+ */
+export function deriveNistP256Seed(
+  timestamp = NIST_P256_TIMESTAMP,
+  candidate = NIST_P256_CANDIDATE,
+): string {
+  const milliseconds = Date.parse(timestamp);
+  if (!Number.isFinite(milliseconds) || !Number.isSafeInteger(candidate) || candidate < 1) {
+    throw new RangeError('A valid timestamp and positive candidate number are required');
+  }
+  let state = (BigInt(Math.floor(milliseconds / 1000)) << 16n) | 0x330en;
+  let seed = '';
+  for (let draw = 0; draw < candidate * 20; draw += 1) {
+    state = (0x5deece66dn * state + 0xbn) & ((1n << 48n) - 1n);
+    if (draw >= (candidate - 1) * 20) {
+      seed += (state >> 40n).toString(16).padStart(2, '0');
+    }
+  }
+  return seed.toUpperCase();
+}
+
+/** Compare the reconstructed seed with the independently published standard value. */
+export function nistSeedProvenance(): SeedProvenance {
+  const derived = deriveNistP256Seed();
+  return { derived, published: NIST_P256_SEED, matches: derived === NIST_P256_SEED };
+}
 
 /** brainpoolP256r1's prime seed, recomputed from pi and compared with the RFC. */
 export function primeSeedProvenance(): SeedProvenance {

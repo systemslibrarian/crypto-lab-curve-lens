@@ -29,7 +29,7 @@ import {
 } from './realcurve';
 import { renderCurvePlot, renderRealPlane } from './visualizer';
 import { REAL_PLANE_CURVE, upperY } from './realplane';
-import { NIST_P256_SEED, curveSeedProvenance, primeSeedProvenance } from './sleeve';
+import { curveSeedProvenance, primeSeedProvenance, nistSeedProvenance } from './sleeve';
 
 type ScalarMode = 'small' | 'real';
 type FieldView = 'reals' | 'field';
@@ -80,6 +80,7 @@ const verificationSuite = runVerificationSuite();
  */
 const primeSeed = primeSeedProvenance();
 const curveSeed = curveSeedProvenance();
+const nistSeed = nistSeedProvenance();
 
 /** A timer handle for the animated discrete-log walk, so it can be cancelled. */
 let ecdlpTimer: ReturnType<typeof setInterval> | null = null;
@@ -409,20 +410,24 @@ function provenanceMarkup(): string {
         <div class="seed-row">
           <dt>NIST P-256 — seed</dt>
           <dd>
+            <p class="muted">Recomputed here: lrand48 initialized at 1997-08-16 01:52:34 UTC,
+              candidate 1,842 (20 bytes per candidate):</p>
+            <p class="code-block" data-testid="p256-derived-seed">${nistSeed.derived}</p>
             <p class="muted">Published in FIPS 186-4 D.1.2.3 and SEC 2 v2.0 §2.4.2:</p>
-            <p class="code-block">${NIST_P256_SEED}</p>
-            <p class="muted">Derived from:</p>
-            <p class="seed-verdict is-unknown">— No derivation of this seed has ever been published</p>
+            <p class="code-block">${nistSeed.published}</p>
+            <p class="seed-verdict ${nistSeed.matches ? 'is-pass' : 'is-fail'}">
+              ${nistSeed.matches ? '✓ Match — the recovered recipe reproduces the seed' : '✗ Mismatch — reconstruction failed'}
+            </p>
           </dd>
         </div>
       </dl>
       <p class="muted">
-        Both rows above reproduce RFC 5639's published seeds from nothing but π and e, computed in
-        your browser. Nobody can search for a favourable value of π. P-256's seed is a well-formed
-        160-bit value that the curve genuinely derives from — but it simply appears, with no account
-        of how it was picked. That is the entire "nothing up my sleeve" argument, and it is an
-        argument about <em>provenance</em>, not a demonstration of any weakness in P-256. No attack
-        on P-256 is known.
+        <a href="https://www.anthropic.com/research/ecdsa-curve-origins" target="_blank" rel="noreferrer">Anthropic's
+        16 October 2026 disclosure</a> supplies the recovered P-256 recipe. This is a reproducible
+        <em>provenance</em> result, not a cryptographic break. Why some viable candidates were skipped
+        and how P-256's base point was selected remain unexplained. No attack on P-256 is known.
+        The brainpool rows instead derive their seeds from π and e under RFC 5639.
+        The weak historical RNG here generates public parameters, not private keys; do not use it for secrets.
       </p>
       <p class="crosslink-note">
         The same question asked of a different primitive:
