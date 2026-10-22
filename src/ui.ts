@@ -316,7 +316,7 @@ function glossaryMarkup(): string {
     ],
     [
       'Cofactor (h)',
-      'The full curve has h × n points; the cofactor h is the leftover factor outside the prime-order subgroup you actually use. h = 1 for P-256, secp256k1 and brainpoolP256r1; h = 8 for Curve25519, which is why X25519 clamps scalars to dodge small-subgroup attacks.',
+      'The full curve has h × n points; the cofactor h is the leftover factor outside the prime-order subgroup you actually use. h = 1 for P-256, secp256k1 and brainpoolP256r1; h = 8 for Curve25519. X25519 clamps private scalars, so small-order peer inputs yield an all-zero raw result rather than leaking scalar bits. Protocols may reject that result.',
     ],
     [
       'Weierstrass vs Montgomery',
@@ -922,6 +922,14 @@ function ecdhPanelMarkup(state: AppState): string {
         </article>
       </div>
     </div>
+    ${
+      transcript.curve === 'curve25519'
+        ? `<details class="result-card" id="ecdh-low-order-note">
+            <summary>What if a peer sends a low-order X25519 value?</summary>
+            <p class="muted">With a clamped scalar, the raw X25519 result for a small-order input is all zero, independent of private-scalar bits. The @noble/curves helper used by this demo rejects that result. A protocol cannot assume both parties contributed to a key just because an X25519 call completed; it may check and reject all zero, and bind both public keys into its KDF where identity binding matters. This panel generates valid public keys itself and does not accept arbitrary peer inputs. See <a href="https://www.rfc-editor.org/rfc/rfc7748.html#section-6.1" target="_blank" rel="noopener noreferrer">RFC 7748 §§6.1 and 7</a>.</p>
+          </details>`
+        : ''
+    }
   `;
 }
 
@@ -969,7 +977,7 @@ function buildAppMarkup(state: AppState): string {
             <p class="eyebrow">Panel 1</p>
             <h2 id="panel1-heading">Curve Explorer</h2>
           </div>
-          <p class="panel-note">Start with the smooth picture over the real numbers, then switch to the finite field. Same rule, same algebra — real curves just use roughly 256-bit primes instead of 17.</p>
+          <p class="panel-note">Start with geometry over real numbers, then switch to a distinct finite-field group. The addition formulas have analogous shapes; production curves use large finite fields rather than real coordinates.</p>
         </div>
         <div class="field-toggle" role="group" aria-label="Choose where the group law is drawn">
           <button class="segment ${state.fieldView === 'reals' ? 'is-active' : ''}" data-field-view="reals" aria-pressed="${state.fieldView === 'reals'}">Reals first (ℝ)</button>
@@ -1066,7 +1074,7 @@ function buildAppMarkup(state: AppState): string {
             <p class="eyebrow">Panel 5</p>
             <h2 id="panel5-heading">ECDH Live Demo</h2>
           </div>
-          <p class="panel-note">This shared point is the basis of X25519, ECDH P-256, and every protocol in the key-agreement category.</p>
+          <p class="panel-note">This shared-value calculation underlies classical X25519 and P-256 key agreement. Hybrid protocols also combine it with a post-quantum KEM.</p>
         </div>
         <h3 class="subheading">See it on the toy curve first</h3>
         <p class="panel-note">Before the hex, watch the whole trick on the small curve: Alice and Bob start from the public generator G, each multiply it by a private secret, swap the results, then multiply again — and land on the identical dot.</p>

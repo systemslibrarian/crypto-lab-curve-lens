@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { x25519 } from '@noble/curves/ed25519.js';
 import {
   bytesToHex,
   defaultScalarForCurve,
@@ -94,6 +95,19 @@ describe('ECDH agreement', () => {
       const transcript = generateEcdhDemo(id);
       expect(transcript.aliceShared).toBe(transcript.bobShared);
       expect(transcript.aliceShared.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('rejects a low-order X25519 peer input for distinct private scalars', () => {
+    const lowOrderPublic = new Uint8Array(32);
+    const firstPrivate = hexToBytes(
+      '77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a',
+    );
+    const secondPrivate = hexToBytes(
+      '5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb',
+    );
+    for (const privateKey of [firstPrivate, secondPrivate]) {
+      expect(() => x25519.getSharedSecret(privateKey, lowOrderPublic)).toThrow();
     }
   });
 

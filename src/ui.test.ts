@@ -192,6 +192,21 @@ describe('input focus is preserved across re-render', () => {
 });
 
 describe('ECDH panel', () => {
+  it('explains low-order X25519 input without claiming scalar-bit leakage', () => {
+    const root = mount();
+    expect(root.querySelector('#ecdh-low-order-note')).toBeNull();
+    const picker = root.querySelector<HTMLSelectElement>('#ecdh-curve-select');
+    expect(picker).not.toBeNull();
+    picker!.value = 'curve25519';
+    picker!.dispatchEvent(new Event('change', { bubbles: true }));
+    const note = root.querySelector<HTMLDetailsElement>('#ecdh-low-order-note');
+    expect(note).not.toBeNull();
+    expect(note?.textContent).toContain('all zero');
+    expect(note?.textContent).toContain('does not accept arbitrary peer inputs');
+    expect(note?.querySelector('a')?.href).toContain('rfc7748');
+    expect(note?.textContent).not.toMatch(/leaks? (private )?scalar bits/i);
+  });
+
   it('regenerates a matching shared secret', () => {
     const root = mount();
     root.querySelector<HTMLButtonElement>('#ecdh-generate')?.click();
