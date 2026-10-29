@@ -1012,7 +1012,7 @@ function buildAppMarkup(state: AppState): string {
               <p class="result-kicker">Selections</p>
               <p>${selectionSummary}</p>
               <p class="muted">${additionSummary}</p>
-              <button class="ghost-button share-btn" type="button" id="share-link" aria-label="Copy a shareable link to this view">Copy shareable link</button>
+              <button class="ghost-button share-btn" type="button" id="share-link" aria-label="Copy shareable link: to this view">Copy shareable link</button>
             </article>
             <article class="result-card">
               <p class="result-kicker">Result</p>
