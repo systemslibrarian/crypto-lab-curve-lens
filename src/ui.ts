@@ -847,7 +847,7 @@ function toyEcdhMarkup(state: AppState): string {
           <p class="point-result" aria-live="polite">${
             match ? `✓ Both reach ${selectedPointLabel(shared)}` : '✗ mismatch'
           }</p>
-          <button class="ghost-button" type="button" id="toy-ecdh-shuffle" aria-label="Pick new random toy secrets for Alice and Bob">New secrets</button>
+          <button class="ghost-button" type="button" id="toy-ecdh-shuffle" aria-label="New secrets: pick new random toy secrets for Alice and Bob">New secrets</button>
         </article>
       </div>
     </div>
@@ -890,7 +890,7 @@ function ecdhPanelMarkup(state: AppState): string {
               .join('')}
           </select>
         </label>
-        <button class="primary-button" id="ecdh-generate" aria-label="Generate fresh ECDH keypairs for Alice and Bob">Generate fresh keypairs</button>
+        <button class="primary-button" id="ecdh-generate" aria-label="Generate fresh keypairs: ECDH, for Alice and Bob">Generate fresh keypairs</button>
         <p class="panel-note">Alice computes a · B, Bob computes b · A, and both land on the same shared point or u-coordinate.</p>
         <div class="result-card ${keysMatch ? '' : 'is-error'}" aria-live="polite" id="ecdh-shared-card">
           <p class="result-kicker">Raw ECDH output Z — not yet a symmetric key</p>
