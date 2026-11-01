@@ -259,3 +259,31 @@ describe('Panel 1 reals-first view', () => {
     ).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('the scalar shown back from the URL cannot add markup of its own', () => {
+  // `?rs=` is copied into state unvalidated and rendered into the scalar input's
+  // value attribute. Before this was escaped, a crafted link closed the attribute
+  // and the tag, and the payload's own elements appeared in the live page.
+  const PAYLOADS = [
+    '"><img src=x data-injected=yes>',
+    "' autofocus data-injected=yes x='",
+    '</input><img data-injected=yes>',
+    '" onfocus="window.__xss=1',
+  ];
+
+  for (const payload of PAYLOADS) {
+    it(`renders ${JSON.stringify(payload)} as text, not markup`, () => {
+      window.history.replaceState({}, '', `/?rs=${encodeURIComponent(payload)}`);
+      const root = mount();
+
+      expect(root.querySelectorAll('[data-injected]')).toHaveLength(0);
+      const input = root.querySelector<HTMLInputElement>('#real-scalar-input');
+      // The tag still ends where it should: a payload that closed it early would
+      // take this trailing attribute with it.
+      expect(input?.getAttribute('spellcheck')).toBe('false');
+      // And the value survives intact, because escaping is not filtering.
+      expect(input?.value).toBe(payload);
+      expect(input?.hasAttribute('onfocus')).toBe(false);
+    });
+  }
+});

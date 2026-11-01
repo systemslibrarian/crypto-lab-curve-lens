@@ -544,8 +544,24 @@ function explorerArithmetic(p: FinitePoint, q: FinitePoint): string {
   `;
 }
 
+// Escapes every character that can end an attribute value or open a tag, so a
+// value rendered into markup cannot add attributes or elements of its own. `&`
+// must come first, or the later replacements' own ampersands get re-escaped.
+// `>` and `'` are not what stops the attack at a `value="..."` sink -- `"` is --
+// but they are here so this helper is also correct for a single-quoted attribute
+// and for a value that reaches a text position.
 function escapeAttr(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** The same escaping for a text position, where the quotes are harmless but cost nothing. */
+function escapeText(value: string): string {
+  return escapeAttr(value);
 }
 
 /** A monospace value with a one-click copy button. */
@@ -730,7 +746,7 @@ function scalarPanelMarkup(state: AppState): string {
     realResultMarkup = `
       <div class="result-card is-error">
         <p class="result-kicker">Real curve result</p>
-        <p>${(error as Error).message}</p>
+        <p>${escapeText((error as Error).message)}</p>
       </div>
     `;
   }
@@ -769,7 +785,7 @@ function scalarPanelMarkup(state: AppState): string {
           </label>
           <label>
             <span>Scalar</span>
-            <input id="real-scalar-input" value="${state.realScalar}" spellcheck="false" />
+            <input id="real-scalar-input" value="${escapeAttr(state.realScalar)}" spellcheck="false" />
           </label>
           <p class="muted">Use decimal for P-256, secp256k1 and brainpoolP256r1, or 32-byte hex for Curve25519/X25519.</p>
           ${realResultMarkup}
