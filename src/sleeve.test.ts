@@ -71,8 +71,8 @@ describe('brainpool seed derivation', () => {
 /**
  * Check the standard seed-to-curve relation independently of the recovered RNG recipe.
  *
- * ANSI X9.62 / FIPS 186-4 D.3.3: from seed S, compute c from SHA-1(S); the curve is accepted
- * when its own b satisfies b²·c ≡ −27 (mod p).
+ * ANSI X9.62 / SP 800-186 Appendix C.3.2 (formerly FIPS 186-4 D.6): from seed S, compute c from
+ * SHA-1(S); the curve is accepted when its own b satisfies b²·c ≡ −27 (mod p).
  */
 describe('NIST P-256 seed', () => {
   it('reconstructs the published seed from the recovered timestamp and candidate', () => {

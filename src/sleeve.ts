@@ -135,7 +135,8 @@ const PUBLISHED_SEED_AB_256 = '757F5958490CFD47D7C19BB42158D9554F7B46BC';
 /**
  * NIST P-256's seed, as published in FIPS 186-4 D.1.2.3 and SEC 2 v2.0 §2.4.2.
  *
- * Confirmed rather than copied: under the ANSI X9.62 / FIPS 186-4 D.3.3 generation rule,
+ * Confirmed rather than copied: under the ANSI X9.62 / SP 800-186 Appendix C.3.1 generation rule
+ * (verified per C.3.2; formerly FIPS 186-4 D.5/D.6),
  * SHA-1 of this seed yields the c for which P-256's own b satisfies b^2·c = -27 (mod p).
  * `sleeve.test.ts` runs that derivation, and a single flipped bit in the seed fails it — so
  * the value below is pinned by arithmetic, not by recollection.
