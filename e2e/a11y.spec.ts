@@ -52,7 +52,7 @@ async function scan(page: Page): Promise<void> {
   // deleted label can leave this gate green. See `control-names.ts`.
   expect(
     formatControlNameFailures(await auditControlNames(page)),
-    'form controls named only by placeholder/title'
+    'form controls named only by placeholder/title',
   ).toEqual([]);
 }
 
