@@ -15,11 +15,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The gate, called rather than copied -- the same file the Dependabot
+  # auto-merge waits on, so what merges a bump and what publishes it are
+  # one definition and cannot drift apart.
+  gate:
+    uses: ./.github/workflows/gate.yml
+
   build:
+    needs: gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-
       - uses: actions/setup-node@v7
         with:
           # 24, not 20. jsdom 30 pulls undici 8, which calls
@@ -32,23 +38,14 @@ jobs:
           # >=22.19 / >=24. Node 20 is EOL; 24 is the current LTS.
           node-version: 24
           cache: npm
-
       - run: npm ci
-      - run: npm run lint
-      - run: npm test
       - run: npm run build
-
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
-      - name: Browser gates (axe-core WCAG A/AA + functional claims)
-        run: npm run test:e2e
-
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
   deploy:
-    needs: build
+    needs: [gate, build]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
