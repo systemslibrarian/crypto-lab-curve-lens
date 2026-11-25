@@ -446,8 +446,8 @@ export function renderRealPlane(svg: SVGSVGElement, options: RealPlaneOptions): 
   // Fixed data window chosen so the teaching curve and a typical chord both fit.
   const xMin = -3;
   const xMax = 4.2;
-  const yMin = -7;
-  const yMax = 7;
+  const yMin = -8;
+  const yMax = 8;
 
   const toX = (x: number): number => pad + ((x - xMin) / (xMax - xMin)) * (size - 2 * pad);
   const toY = (y: number): number => size - pad - ((y - yMin) / (yMax - yMin)) * (size - 2 * pad);
@@ -457,7 +457,9 @@ export function renderRealPlane(svg: SVGSVGElement, options: RealPlaneOptions): 
     viewBox: `0 0 ${size} ${size}`,
     role: 'img',
     'aria-label':
-      'The elliptic-curve group law over the real numbers: a straight line through P and Q meets the smooth curve at a third point, which is reflected across the x-axis to give P + Q.',
+      options.px === options.qx
+        ? 'Tangent at P = Q. Reflect the third intersection across the x-axis to find 2P.'
+        : 'Chord through P and Q. Reflect the third intersection across the x-axis to find P + Q.',
   });
 
   const background = createSvgElement('rect');
@@ -511,10 +513,9 @@ export function renderRealPlane(svg: SVGSVGElement, options: RealPlaneOptions): 
   }
   const p = { x: options.px, y: pyRaw };
   const q = { x: options.qx, y: qyRaw };
-  const { sum, third } = addRealPoints(curve, p, q);
+  const { sum, third, slope } = addRealPoints(curve, p, q);
 
-  // The chord: extend it a little past P and Q so it visibly crosses the curve.
-  const slope = (q.y - p.y) / (q.x - p.x);
+  // Extend the same chord or tangent used in the addition across the plot.
   const chordX1 = xMin;
   const chordX2 = xMax;
   const chordY1 = p.y + slope * (chordX1 - p.x);
@@ -555,8 +556,12 @@ export function renderRealPlane(svg: SVGSVGElement, options: RealPlaneOptions): 
   };
 
   dot(third.x, third.y, 'plot-point is-third', '−(P+Q)', 9, -9);
-  dot(p.x, p.y, 'plot-point is-selected', 'P', -18, -8);
-  dot(q.x, q.y, 'plot-point is-selected', 'Q', 9, -8);
+  if (p.x === q.x) {
+    dot(p.x, p.y, 'plot-point is-selected', 'P = Q', 9, -8);
+  } else {
+    dot(p.x, p.y, 'plot-point is-selected', 'P', -18, -8);
+    dot(q.x, q.y, 'plot-point is-selected', 'Q', 9, -8);
+  }
   dot(sum.x, sum.y, 'plot-point is-result', 'P+Q', 9, 16);
 
   // When P and Q sit close together on the steep left of the curve the chord is

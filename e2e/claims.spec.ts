@@ -921,3 +921,51 @@ test('related-demo cross-links open the live labs, not their source repositories
     page.locator('.cl-topbar a[href="https://github.com/systemslibrarian/crypto-lab-curve-lens"]'),
   ).toHaveCount(1);
 });
+
+test('real-plane sliders retain focus and draw the doubling tangent at every selectable point', async ({
+  page,
+}) => {
+  await page.goto('.');
+  const px = page.locator('#real-px');
+  const qx = page.locator('#real-qx');
+  const plot = page.locator('#real-plane-plot');
+  await qx.fill('1');
+  await px.fill('1');
+  await expect(plot).toHaveAccessibleName(/Tangent at P = Q/);
+  await expect(plot).toContainText('P = Q');
+  await px.focus();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await expect(px).toBeFocused();
+  await expect(px).toHaveValue('1.2');
+  await expect(page.locator('#real-px-value')).toHaveText('1.2');
+  await expect(plot).toHaveAccessibleName(/Chord through P and Q/);
+
+  // Use two known points with equal y to calibrate the plot's horizontal
+  // scale, and their reflections at x = 1 to calibrate its vertical scale.
+  await px.fill('-2');
+  const reference = await realPlaneDots(page);
+  const xScale = (reference.q.cx - reference.p.cx) / 3;
+  const yScale = (reference.sum.cy - reference.q.cy) / (2 * Math.sqrt(3));
+  const originX = reference.q.cx - xScale;
+  const originY = reference.q.cy + Math.sqrt(3) * yScale;
+  for (let step = -21; step <= 40; step++) {
+    const x = step / 10;
+    await px.fill(String(x));
+    await qx.fill(String(x));
+    await expect(px).toHaveValue(String(x));
+    await expect(qx).toHaveValue(String(x));
+    const y = Math.sqrt(x ** 3 - 3 * x + 5);
+    const m = (3 * x * x - 3) / (2 * y);
+    const sumX = m * m - 2 * x;
+    const sumY = m * (x - sumX) - y;
+    const dots = await realPlaneDots(page);
+    expect((dots.sum.cx - originX) / xScale).toBeCloseTo(sumX, 8);
+    expect((originY - dots.sum.cy) / yScale).toBeCloseTo(sumY, 8);
+    const [x1, y1, x2, y2] = await plot
+      .locator('.plot-chord')
+      .evaluate((line) => ['x1', 'y1', 'x2', 'y2'].map((attr) => Number(line.getAttribute(attr))));
+    expect((-((y2 - y1) / (x2 - x1)) * xScale) / yScale).toBeCloseTo(m, 8);
+    expect(y1 + ((dots.p.cx - x1) * (y2 - y1)) / (x2 - x1)).toBeCloseTo(dots.p.cy, 8);
+  }
+});

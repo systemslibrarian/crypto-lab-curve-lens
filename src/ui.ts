@@ -28,7 +28,6 @@ import {
   type RealCurveId,
 } from './realcurve';
 import { renderCurvePlot, renderRealPlane } from './visualizer';
-import { REAL_PLANE_CURVE, upperY } from './realplane';
 import { curveSeedProvenance, primeSeedProvenance, nistSeedProvenance } from './sleeve';
 
 type ScalarMode = 'small' | 'real';
@@ -93,24 +92,6 @@ let urlSyncEnabled = false;
 
 function prefersReducedMotion(): boolean {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
-/**
- * Keep a real-plane slider value where the teaching curve is actually defined
- * (rhs >= 0) and nudge it off `other` so P and Q never coincide — a chord needs
- * two distinct points, and identical x with identical y would divide by zero.
- */
-function clampRealX(value: number, other: number): number {
-  let x = Math.min(4, Math.max(-2.1, value));
-  // Ensure the point lies on the real curve; if not, step toward the valid region.
-  while (upperY(REAL_PLANE_CURVE, x) === null && x < 4) {
-    x = Math.round((x + 0.1) * 10) / 10;
-  }
-  if (Math.abs(x - other) < 0.1) {
-    x = x + (x >= other ? 0.1 : -0.1);
-    x = Math.min(4, Math.max(-2.1, Math.round(x * 10) / 10));
-  }
-  return Math.round(x * 10) / 10;
 }
 
 /**
@@ -585,7 +566,7 @@ function plotLegend(): string {
   `;
 }
 
-/** The lowest x for which the real teaching curve is defined (rhs >= 0), rounded up. */
+/** Both sliders trace the upper branch over this interval of positive radicands. */
 const REAL_X_MIN = -2.1;
 const REAL_X_MAX = 4;
 
@@ -596,11 +577,11 @@ function realPlaneMarkup(state: AppState): string {
            aria-label="Elliptic curve over the real numbers, showing the chord-and-tangent construction of P + Q."></svg>
       <div class="real-plane-controls">
         <label>
-          <span>Move P along the curve (x = ${state.realPx.toFixed(1)})</span>
+          <span>Move P along the curve (x = <span id="real-px-value">${state.realPx.toFixed(1)}</span>)</span>
           <input id="real-px" type="range" min="${REAL_X_MIN}" max="${REAL_X_MAX}" step="0.1" value="${state.realPx}" aria-label="Position of point P along the real curve" />
         </label>
         <label>
-          <span>Move Q along the curve (x = ${state.realQx.toFixed(1)})</span>
+          <span>Move Q along the curve (x = <span id="real-qx-value">${state.realQx.toFixed(1)}</span>)</span>
           <input id="real-qx" type="range" min="${REAL_X_MIN}" max="${REAL_X_MAX}" step="0.1" value="${state.realQx}" aria-label="Position of point Q along the real curve" />
         </label>
       </div>
@@ -608,7 +589,7 @@ function realPlaneMarkup(state: AppState): string {
     <div class="stacked-cards">
       <article class="result-card">
         <p class="result-kicker">Group law over ℝ</p>
-        <p class="muted">This is the same curve family <em>y² = x³ + ax + b</em>, but drawn over the ordinary real numbers so it is a smooth line. Slide P and Q: the straight <strong>chord</strong> through them always meets the curve at exactly one <strong>third point</strong>, coloured −(P+Q). Reflect that point straight down across the x-axis and you land on the sum <strong>P+Q</strong>. That reflect-the-third-intersection rule <em>is</em> elliptic-curve addition.</p>
+        <p class="muted">This is the same curve family <em>y² = x³ + ax + b</em>, but drawn over the ordinary real numbers so it is a smooth line. Choose two different points to draw their <strong>chord</strong>. Set P and Q to the same point to draw the <strong>tangent</strong> there. The point of tangency counts twice. In either construction, reflect the third intersection across the x-axis to find <strong>P+Q</strong>. When P = Q, the sum is <strong>2P</strong>.</p>
       </article>
       <article class="result-card">
         <p class="result-kicker">Next: same algebra, mod 17</p>
@@ -1274,7 +1255,21 @@ function render(root: HTMLElement, state: AppState): void {
 
   const realPlanePlot = root.querySelector<SVGSVGElement>('#real-plane-plot');
   if (realPlanePlot) {
-    renderRealPlane(realPlanePlot, { px: state.realPx, qx: state.realQx });
+    const draw = () => renderRealPlane(realPlanePlot, { px: state.realPx, qx: state.realQx });
+    draw();
+    for (const [id, key] of [
+      ['real-px', 'realPx'],
+      ['real-qx', 'realQx'],
+    ] as const) {
+      const slider = root.querySelector<HTMLInputElement>(`#${id}`);
+      const label = root.querySelector<HTMLElement>(`#${id}-value`);
+      if (!slider || !label) continue;
+      slider.addEventListener('input', () => {
+        state[key] = slider.valueAsNumber;
+        label.textContent = slider.valueAsNumber.toFixed(1);
+        draw();
+      });
+    }
   }
 
   root.querySelectorAll<HTMLButtonElement>('[data-field-view]').forEach((button) => {
@@ -1282,22 +1277,6 @@ function render(root: HTMLElement, state: AppState): void {
       state.fieldView = button.dataset.fieldView as FieldView;
       render(root, state);
     });
-  });
-
-  root.querySelector<HTMLInputElement>('#real-px')?.addEventListener('input', (event) => {
-    state.realPx = clampRealX(
-      Number((event.currentTarget as HTMLInputElement).value),
-      state.realQx,
-    );
-    render(root, state);
-  });
-
-  root.querySelector<HTMLInputElement>('#real-qx')?.addEventListener('input', (event) => {
-    state.realQx = clampRealX(
-      Number((event.currentTarget as HTMLInputElement).value),
-      state.realPx,
-    );
-    render(root, state);
   });
 
   (
